@@ -1,3 +1,7 @@
+<svelte:head>
+	<title>bbrookcs</title>
+	<meta name="description" content="Thoughts on technology, space, and the architecture of the universe." />
+</svelte:head>
 <div class="spinner" aria-label="Redirecting"></div>
 
 <style>

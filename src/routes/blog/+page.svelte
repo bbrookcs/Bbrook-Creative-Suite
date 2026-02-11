@@ -39,7 +39,7 @@
 
 <svelte:head>
 	<title>bbrookcs Blog</title>
-	<meta name="description" content="Thoughts on technology, software, and craft." />
+	<meta name="description" content="Thoughts on technology, space, and the architecture of the universe." />
 </svelte:head>
 
 <div class="container">

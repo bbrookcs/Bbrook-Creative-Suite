@@ -15,7 +15,7 @@ const marked = new Marked(
 
 marked.setOptions({
 	gfm: true,
-	breaks: false
+	breaks: true
 });
 
 /**
