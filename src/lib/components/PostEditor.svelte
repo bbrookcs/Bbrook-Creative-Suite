@@ -24,6 +24,9 @@
 	let metaTitle = $state(post?.meta_title || '');
 	let metaDescription = $state(post?.meta_description || '');
 	let ogImage = $state(post?.og_image || '');
+	let quoteText = $state(post?.quote_text || '');
+	let quoteSource = $state(post?.quote_source || '');
+	let quoteUrl = $state(post?.quote_url || '');
 	
 	// Track if user has manually edited these fields
 	let metaTitleManuallyEdited = $state(false);
@@ -99,6 +102,9 @@
 			meta_title: metaTitle,
 			meta_description: metaDescription,
 			og_image: ogImage,
+			quote_text: quoteText.trim(),
+			quote_source: quoteSource.trim(),
+			quote_url: quoteUrl.trim(),
 			tags,
 			images
 		});
@@ -209,6 +215,41 @@
 					bind:value={tagsInput}
 				/>
 				<p class="help-text">Separate with commas</p>
+			</div>
+
+			<div class="sidebar-section">
+				<h3 class="sidebar-title">Featured Quote</h3>
+				<div class="form-group">
+					<label class="form-label" for="quote-text">Quote Text</label>
+					<textarea
+						id="quote-text"
+						class="input"
+						placeholder="Enter the quote or excerpt..."
+						bind:value={quoteText}
+						rows="4"
+					></textarea>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="quote-source">Source</label>
+					<input
+						id="quote-source"
+						type="text"
+						class="input"
+						placeholder="Author name, publication, etc."
+						bind:value={quoteSource}
+					/>
+				</div>
+				<div class="form-group">
+					<label class="form-label" for="quote-url">Source URL</label>
+					<input
+						id="quote-url"
+						type="url"
+						class="input"
+						placeholder="https://..."
+						bind:value={quoteUrl}
+					/>
+				</div>
+				<p class="help-text">Add a quote or excerpt from external source to display at the top of your post</p>
 			</div>
 
 			<div class="sidebar-section">

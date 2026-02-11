@@ -8,8 +8,8 @@ import { browser } from '$app/environment';
 function createThemeStore() {
 	/** @type {ThemePreference} */
 	const initial = browser
-		? /** @type {ThemePreference} */ (localStorage.getItem('theme-preference') || 'system')
-		: 'system';
+		? /** @type {ThemePreference} */ (localStorage.getItem('theme-preference') || 'light')
+		: 'light';
 
 	const { subscribe, set, update } = writable(initial);
 
@@ -43,7 +43,7 @@ function createThemeStore() {
 		init() {
 			if (browser) {
 				const pref = /** @type {ThemePreference} */ (
-					localStorage.getItem('theme-preference') || 'system'
+					localStorage.getItem('theme-preference') || 'light'
 				);
 				applyTheme(pref);
 				set(pref);

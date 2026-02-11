@@ -7,7 +7,7 @@
 		<!-- Typography: Georgia (serif) for brand heading, system sans for body/UI — matches classic blog style -->
 		<script>
 			(function () {
-				const pref = localStorage.getItem('theme-preference') || 'system';
+				const pref = localStorage.getItem('theme-preference') || 'light';
 				let theme;
 				if (pref === 'system') {
 					theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

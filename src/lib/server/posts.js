@@ -120,8 +120,8 @@ export async function createPost(data) {
 	const imagesJson = JSON.stringify(data.images || []);
 
 	const [result] = await db.query(
-		`INSERT INTO posts (title, slug, excerpt, content, status, meta_title, meta_description, og_image, tags, images, reading_time, created_at, updated_at, published_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO posts (title, slug, excerpt, content, status, meta_title, meta_description, og_image, tags, images, quote_text, quote_source, quote_url, reading_time, created_at, updated_at, published_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[
 			data.title,
 			slug,
@@ -133,6 +133,9 @@ export async function createPost(data) {
 			data.og_image || '',
 			tagsJson,
 			imagesJson,
+			data.quote_text || '',
+			data.quote_source || '',
+			data.quote_url || '',
 			readingTime,
 			now,
 			now,
@@ -168,7 +171,7 @@ export async function updatePost(id, data) {
 	);
 
 	await db.query(
-		`UPDATE posts SET title=?, slug=?, excerpt=?, content=?, status=?, meta_title=?, meta_description=?, og_image=?, tags=?, images=?, reading_time=?, updated_at=?, published_at=? WHERE id=?`,
+		`UPDATE posts SET title=?, slug=?, excerpt=?, content=?, status=?, meta_title=?, meta_description=?, og_image=?, tags=?, images=?, quote_text=?, quote_source=?, quote_url=?, reading_time=?, updated_at=?, published_at=? WHERE id=?`,
 		[
 			data.title ?? ex.title,
 			slug,
@@ -180,6 +183,9 @@ export async function updatePost(id, data) {
 			data.og_image ?? ex.og_image,
 			tagsJson,
 			imagesJson,
+			data.quote_text ?? ex.quote_text,
+			data.quote_source ?? ex.quote_source,
+			data.quote_url ?? ex.quote_url,
 			readingTime,
 			now,
 			publishedAt,

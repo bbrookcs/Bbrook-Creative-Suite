@@ -41,6 +41,9 @@ export async function initDb() {
 			og_image VARCHAR(1000) DEFAULT '',
 			tags JSON,
 			images JSON,
+			quote_text TEXT,
+			quote_source VARCHAR(255),
+			quote_url VARCHAR(1000),
 			reading_time INT DEFAULT 1,
 			upvotes INT DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -54,6 +57,23 @@ export async function initDb() {
 	// Add upvotes column for existing databases
 	try {
 		await p.query('ALTER TABLE posts ADD COLUMN upvotes INT DEFAULT 0');
+	} catch (_) {
+		// Column already exists
+	}
+	
+	// Add quote columns for existing databases
+	try {
+		await p.query('ALTER TABLE posts ADD COLUMN quote_text TEXT');
+	} catch (_) {
+		// Column already exists
+	}
+	try {
+		await p.query('ALTER TABLE posts ADD COLUMN quote_source VARCHAR(255)');
+	} catch (_) {
+		// Column already exists
+	}
+	try {
+		await p.query('ALTER TABLE posts ADD COLUMN quote_url VARCHAR(1000)');
 	} catch (_) {
 		// Column already exists
 	}

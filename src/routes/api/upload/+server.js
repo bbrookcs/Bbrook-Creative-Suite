@@ -22,7 +22,8 @@ export async function POST({ request, locals }) {
 	const s3 = new S3Client({
 		region: 'auto',
 		endpoint,
-		credentials: { accessKeyId: accessKey, secretAccessKey: secretKey }
+		credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+		forcePathStyle: true
 	});
 
 	const formData = await request.formData();

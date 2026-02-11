@@ -11,11 +11,6 @@
 
 <div class="login-page">
 	<div class="login-card">
-		<div class="login-header">
-			<h1 class="login-title">bbrookcs</h1>
-			<p class="login-subtitle">Admin</p>
-		</div>
-
 		{#if form?.error}
 			<div class="error-msg">{form.error}</div>
 		{/if}

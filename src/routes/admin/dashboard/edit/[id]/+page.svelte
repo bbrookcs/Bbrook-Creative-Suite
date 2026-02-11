@@ -42,7 +42,7 @@
 </script>
 
 <svelte:head>
-	<title>Edit: {data.post.title} — bbrookcs Admin</title>
+	<title>Edit: {data.post.title}</title>
 </svelte:head>
 
 <div class="page-header">

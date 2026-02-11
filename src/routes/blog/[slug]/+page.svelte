@@ -1,7 +1,18 @@
 <script>
+	import { goto } from '$app/navigation';
 	import ImageGrid from '$components/ImageGrid.svelte';
 
 	let { data } = $props();
+
+	let navigatingBack = $state(false);
+
+	/** @param {MouseEvent} e */
+	async function handleBackClick(e) {
+		e.preventDefault();
+		if (navigatingBack) return;
+		navigatingBack = true;
+		await goto('/blog');
+	}
 
 	const post = $derived(data.post);
 
@@ -76,7 +87,7 @@
 </script>
 
 <svelte:head>
-	<title>{post.meta_title || post.title} — bbrookcs</title>
+	<title>{post.meta_title || post.title} bbrookcs</title>
 	{#if post.meta_description}
 		<meta name="description" content={post.meta_description} />
 	{:else if post.excerpt}
@@ -97,12 +108,16 @@
 </svelte:head>
 
 <article class="container post-article">
-	<a href="/blog" class="back-link back-link-top">
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<line x1="19" y1="12" x2="5" y2="12"></line>
-			<polyline points="12 19 5 12 12 5"></polyline>
-		</svg>
-		Back to blog
+	<a href="/blog" class="back-link back-link-top" onclick={handleBackClick}>
+		{#if navigatingBack}
+			<span class="back-spinner" aria-hidden="true"></span>
+		{:else}
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="19" y1="12" x2="5" y2="12"></line>
+				<polyline points="12 19 5 12 12 5"></polyline>
+			</svg>
+			Back to blog
+		{/if}
 	</a>
 
 	<header class="post-header">
@@ -111,6 +126,41 @@
 
 	{#if post.images && post.images.length > 0}
 		<ImageGrid images={post.images} />
+	{/if}
+
+	{#if post.quote_text}
+		<div class="featured-quote">
+			<blockquote class="quote-text">
+				{#each (post.quote_text.split(/\n\n+/).filter(Boolean)) as paragraph}
+					<p>{paragraph.replace(/\n/g, ' ')}</p>
+				{/each}
+			</blockquote>
+			{#if post.quote_source || post.quote_url}
+				<div class="quote-attribution">
+					{#if post.quote_url}
+						<a href={post.quote_url} target="_blank" rel="noopener noreferrer" class="quote-source-link">
+							<span class="link-text">{post.quote_source || 'Read full article'}</span>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+								<polyline points="15,3 21,3 21,9"></polyline>
+								<line x1="10" y1="14" x2="21" y2="3"></line>
+							</svg>
+						</a>
+					{:else if post.quote_source?.startsWith?.('http')}
+						<a href={post.quote_source} target="_blank" rel="noopener noreferrer" class="quote-source-link">
+							<span class="link-text">Read full article</span>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+								<polyline points="15,3 21,3 21,9"></polyline>
+								<line x1="10" y1="14" x2="21" y2="3"></line>
+							</svg>
+						</a>
+					{:else if post.quote_source}
+						<span class="quote-source">— {post.quote_source}</span>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	{/if}
 
 	<div class="prose">
@@ -182,11 +232,92 @@
 		letter-spacing: -0.01em;
 	}
 
-	.post-tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.375rem;
+	/* Featured Quote Styles */
+	.featured-quote {
+		background: var(--color-bg-alt, #fafafa);
+		border: 1px solid var(--color-border-light, #e5e7eb);
+		border-radius: 12px;
+		padding: 1.5rem;
+		margin: 1.5rem 0;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 	}
+
+	.quote-text {
+		font-size: 1.125rem;
+		line-height: 1.7;
+		font-style: italic;
+		color: var(--color-text-secondary, #4b5563);
+		margin: 0 0 1rem 0;
+		padding: 0;
+		border: none;
+		background: none;
+		position: relative;
+	}
+
+	.quote-text::before {
+		content: '"';
+		font-size: 2rem;
+		color: var(--color-text-muted, #9ca3af);
+		position: absolute;
+		left: -1rem;
+		top: -0.5rem;
+		font-family: Georgia, serif;
+	}
+
+	.quote-text::after {
+		content: '"';
+		font-size: 2rem;
+		color: var(--color-text-muted, #9ca3af);
+		font-family: Georgia, serif;
+	}
+
+	.quote-text p {
+		margin: 0 0 0.875rem 0;
+	}
+
+	.quote-text p:last-child {
+		margin-bottom: 0;
+	}
+
+	.quote-attribution {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		margin-top: 0.75rem;
+	}
+
+	.quote-source-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-accent, #0066cc);
+		text-decoration: none;
+		padding: 0.375rem 0.75rem;
+		border: 1px solid var(--color-accent, #0066cc);
+		border-radius: 6px;
+		transition: all 0.2s ease;
+	}
+
+	.quote-source-link:hover {
+		background: var(--color-accent, #0066cc);
+		color: white;
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+	}
+
+	.quote-source-link svg {
+		opacity: 0.7;
+	}
+
+	.quote-source {
+		font-size: 0.875rem;
+		color: var(--color-text-muted, #6b7280);
+		font-style: normal;
+		font-weight: 500;
+	}
+
 
 	/* --- Prose Styles --- */
 	.prose {
@@ -409,6 +540,22 @@
 
 	.back-link:hover {
 		color: var(--color-text);
+	}
+
+	.back-spinner {
+		display: inline-block;
+		width: 16px;
+		height: 16px;
+		border: 2px solid var(--color-border-light, #e5e7eb);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: back-spin 0.7s linear infinite;
+	}
+
+	@keyframes back-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	@media (max-width: 640px) {

@@ -9,17 +9,6 @@ function getJwtSecret() {
 	return env.JWT_SECRET || env.AUTH_SECRET || 'placeholder-secret-change-in-production';
 }
 
-/**
- * Initialize admin user if none exists. Call after initDb().
- */
-export async function ensureAdminExists() {
-	const [rows] = await db.query('SELECT id FROM users LIMIT 1');
-	if (rows.length === 0) {
-		const hash = bcrypt.hashSync('admin', 10);
-		await db.query('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', hash]);
-	}
-}
-
 export async function login(username, password) {
 	const [rows] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
 	const user = rows[0];

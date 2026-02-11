@@ -13,7 +13,7 @@
 		// Listen for system theme changes
 		const mq = window.matchMedia('(prefers-color-scheme: dark)');
 		const handler = () => {
-			const pref = localStorage.getItem('theme-preference') || 'system';
+			const pref = localStorage.getItem('theme-preference') || 'light';
 			if (pref === 'system') {
 				document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light');
 			}

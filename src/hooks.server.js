@@ -1,13 +1,11 @@
-import { verifyToken, ensureAdminExists } from '$lib/server/auth.js';
+import { verifyToken } from '$lib/server/auth.js';
 import { initDb } from '$lib/server/db.js';
 
 let dbReady = null;
 
 async function ensureDb() {
 	if (dbReady) return dbReady;
-	dbReady = initDb().then(async () => {
-		await ensureAdminExists();
-	});
+	dbReady = initDb();
 	return dbReady;
 }
 

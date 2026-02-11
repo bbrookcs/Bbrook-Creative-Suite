@@ -34,7 +34,7 @@
 </script>
 
 <svelte:head>
-	<title>New Post — bbrookcs Admin</title>
+	<title>New Post</title>
 </svelte:head>
 
 <div class="page-header">

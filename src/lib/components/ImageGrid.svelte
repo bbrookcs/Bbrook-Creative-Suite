@@ -3,12 +3,16 @@
 	 * @type {{ images?: string[] }}
 	 */
 	let { images = [] } = $props();
-	import { 
-        Lightbox,
-        LightboxGallery,
-        GalleryThumbnail,
-        GalleryImage
-    } from 'svelte-lightbox'
+	import {
+		Lightbox,
+		LightboxGallery,
+		GalleryThumbnail,
+		GalleryImage
+	} from 'svelte-lightbox';
+
+	/** @type {Set<number>} */
+	let loadedIndices = $state(new Set());
+
 	/**
 	 * Split images into frames of max 4 images each
 	 * @param {string[]} imgs
@@ -23,6 +27,17 @@
 		return frames;
 	}
 
+	/** @param {number} fi @param {number} i */
+	function getGlobalIndex(fi, i) {
+		return fi * 4 + i;
+	}
+
+	/** @param {number} fi @param {number} i */
+	function markLoaded(fi, i) {
+		loadedIndices = new Set(loadedIndices);
+		loadedIndices.add(getGlobalIndex(fi, i));
+	}
+
 	const frames = $derived(getFrames(images));
 </script>
 
@@ -31,14 +46,21 @@
 		{#each frames as frame, fi}
 			<div class="image-frame layout-{frame.length}">
 				{#each frame as src, i}
+					{@const gix = getGlobalIndex(fi, i)}
 					<div class="image-cell">
+						{#if !loadedIndices.has(gix)}
+							<div class="image-skeleton" aria-hidden="true"></div>
+						{/if}
 						<Lightbox description="Simple lightbox">
-						<img
-							src={src}
-							alt="Post image {fi * 4 + i + 1}"
-							loading="lazy"
-							decoding="async"
-						/></Lightbox>
+							<img
+								src={src}
+								alt="Post image {gix + 1}"
+								loading="lazy"
+								decoding="async"
+								class:loaded={loadedIndices.has(gix)}
+								onload={() => markLoaded(fi, i)}
+							/>
+						</Lightbox>
 					</div>
 				{/each}
 			</div>
@@ -64,10 +86,11 @@
 		background: var(--color-bg-alt);
 	}
 
-	/* 1 image: full frame */
+	/* 1 image: full frame, half height */
 	.layout-1 {
 		grid-template-columns: 1fr;
 		grid-template-rows: 1fr;
+		aspect-ratio: 16 / 5;
 	}
 
 	/* 2 images: side by side */
@@ -95,6 +118,38 @@
 	.image-cell {
 		overflow: hidden;
 		position: relative;
+	}
+
+	.image-skeleton {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			110deg,
+			var(--color-bg-alt, #f3f4f6) 25%,
+			var(--color-border-light, #e5e7eb) 50%,
+			var(--color-bg-alt, #f3f4f6) 75%
+		);
+		background-size: 200% 100%;
+		animation: skeleton-shine 1.2s ease-in-out infinite;
+		border-radius: 4px;
+	}
+
+	.image-cell img {
+		opacity: 0;
+		transition: opacity 0.25s ease;
+	}
+
+	.image-cell img.loaded {
+		opacity: 1;
+	}
+
+	@keyframes skeleton-shine {
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
 	}
 
 	/* Make the Lightbox wrapper fill the cell so the image can fill the space */

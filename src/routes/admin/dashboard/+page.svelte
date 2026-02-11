@@ -17,7 +17,7 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard — bbrookcs Admin</title>
+	<title>Dashboard</title>
 </svelte:head>
 
 <div class="dashboard-header">

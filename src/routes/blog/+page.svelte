@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>bbrookcs — Blog</title>
+	<title>bbrookcs Blog</title>
 	<meta name="description" content="Thoughts on technology, software, and craft." />
 </svelte:head>
 
@@ -93,7 +93,7 @@
 		font-family: var(--font-sans);
 		font-size: 2rem;
 		font-weight: 500;
-		color: rgb(23, 30, 95);
+		color: var(--color-logo-name);
 		margin-bottom: 1.25rem;
 		letter-spacing: -0.02em;
 	}
