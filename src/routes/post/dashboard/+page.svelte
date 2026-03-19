@@ -22,7 +22,7 @@
 
 <div class="dashboard-header">
 	<h1 class="dashboard-title">Posts</h1>
-	<a href="/admin/dashboard/new" class="btn btn-primary">
+	<a href="/post/dashboard/new" class="btn btn-primary">
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 			<line x1="12" y1="5" x2="12" y2="19"></line>
 			<line x1="5" y1="12" x2="19" y2="12"></line>
@@ -34,7 +34,7 @@
 {#if data.posts.length === 0}
 	<div class="empty-state">
 		<p>No posts yet.</p>
-		<a href="/admin/dashboard/new" class="btn btn-secondary" style="margin-top: 1rem;">Create your first post</a>
+		<a href="/post/dashboard/new" class="btn btn-secondary" style="margin-top: 1rem;">Create your first post</a>
 	</div>
 {:else}
 	<div class="posts-table-wrapper">
@@ -51,7 +51,7 @@
 				{#each data.posts as post (post.id)}
 					<tr>
 						<td>
-							<a href="/admin/dashboard/edit/{post.id}" class="post-title-link">{post.title}</a>
+							<a href="/post/dashboard/edit/{post.id}" class="post-title-link">{post.title}</a>
 						
 						</td>
 						<td>
@@ -63,7 +63,7 @@
 							{formatDate(post.published_at || post.created_at)}
 						</td>
 						<td class="cell-actions">
-							<a href="/admin/dashboard/edit/{post.id}" class="btn btn-secondary btn-sm">Edit</a>
+							<a href="/post/dashboard/edit/{post.id}" class="btn btn-secondary btn-sm">Edit</a>
 							{#if post.status === 'published'}
 								<a href="/blog/{post.slug}" class="btn btn-secondary btn-sm" target="_blank">View</a>
 							{/if}
@@ -102,7 +102,7 @@
 		<div class="table-pagination">
 			{#each Array(data.totalPages) as _, i}
 				<a
-					href="/admin/dashboard?page={i + 1}"
+					href="/post/dashboard?page={i + 1}"
 					class="page-link"
 					class:active={data.page === i + 1}
 				>

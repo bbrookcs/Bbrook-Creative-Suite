@@ -5,10 +5,10 @@
 <div class="admin-shell">
 	<header class="admin-header">
 		<div class="admin-header-inner">
-			<a href="/admin/dashboard" class="admin-logo">bbrookcs <span class="admin-label">admin</span></a>
+			<a href="/post/dashboard" class="admin-logo">bbrookcs <span class="admin-label">admin</span></a>
 			<nav class="admin-nav">
 				<a href="/blog" class="admin-nav-link" target="_blank">View blog</a>
-				<form method="POST" action="/admin/logout" class="logout-form">
+				<form method="POST" action="/post/logout" class="logout-form">
 					<button type="submit" class="admin-nav-link logout-btn">Sign out</button>
 				</form>
 			</nav>

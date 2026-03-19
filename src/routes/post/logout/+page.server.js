@@ -4,6 +4,6 @@ import { redirect } from '@sveltejs/kit';
 export const actions = {
 	default: async ({ cookies }) => {
 		cookies.delete('auth_token', { path: '/' });
-		redirect(302, '/admin');
+		redirect(302, '/post');
 	}
 };

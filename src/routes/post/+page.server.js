@@ -4,7 +4,7 @@ import { login } from '$lib/server/auth.js';
 /** @type {import('./$types').PageServerLoad} */
 export function load({ locals }) {
 	if (locals.user) {
-		redirect(302, '/admin/dashboard');
+		redirect(302, '/post/dashboard');
 	}
 }
 
@@ -32,6 +32,6 @@ export const actions = {
 			maxAge: 60 * 60 * 24 * 7 // 7 days
 		});
 
-		redirect(302, '/admin/dashboard');
+		redirect(302, '/post/dashboard');
 	}
 };

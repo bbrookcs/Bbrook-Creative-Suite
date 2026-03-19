@@ -22,18 +22,20 @@
 		return () => mq.removeEventListener('change', handler);
 	});
 
-	const isAdmin = $derived($page.url.pathname.startsWith('/admin'));
+	const isPost = $derived($page.url.pathname.startsWith('/post'));
+	const isError = $derived(!!$page.error);
+	const hideChrome = $derived(isPost || isError);
 </script>
 
-{#if !isAdmin}
+{#if !hideChrome}
 	<Header />
 {/if}
 
-<main class:admin-layout={isAdmin}>
+<main class:admin-layout={hideChrome}>
 	{@render children()}
 </main>
 
-{#if !isAdmin}
+{#if !hideChrome}
 	<footer class="site-footer">
 		<div class="container">
 			<p>&copy; {new Date().getFullYear()} bbrookcs</p>

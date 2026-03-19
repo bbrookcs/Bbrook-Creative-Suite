@@ -24,11 +24,11 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
-	if (event.url.pathname.startsWith('/admin/dashboard')) {
+	if (event.url.pathname.startsWith('/post/dashboard')) {
 		if (!event.locals.user) {
 			return new Response(null, {
 				status: 302,
-				headers: { location: '/admin' }
+				headers: { location: '/post' }
 			});
 		}
 	}
