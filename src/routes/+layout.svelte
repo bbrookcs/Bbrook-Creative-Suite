@@ -23,8 +23,9 @@
 	});
 
 	const isPost = $derived($page.url.pathname.startsWith('/post'));
+	const isSelf = $derived($page.url.pathname.startsWith('/self'));
 	const isError = $derived(!!$page.error);
-	const hideChrome = $derived(isPost || isError);
+	const hideChrome = $derived(isPost || isError || isSelf);
 </script>
 
 {#if !hideChrome}

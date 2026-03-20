@@ -33,6 +33,15 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
+	if (event.url.pathname.startsWith('/self') && !event.url.pathname.startsWith('/self/login')) {
+		if (!event.locals.user || event.locals.user.role !== 'admin') {
+			return new Response(null, {
+				status: 302,
+				headers: { location: '/self/login' }
+			});
+		}
+	}
+
 	const response = await resolve(event);
 	return response;
 }

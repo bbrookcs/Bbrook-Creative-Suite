@@ -17,17 +17,17 @@ export async function login(username, password) {
 	const valid = bcrypt.compareSync(password, user.password);
 	if (!valid) return null;
 
-	const token = jwt.sign({ id: user.id, username: user.username }, getJwtSecret(), {
+	const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, getJwtSecret(), {
 		expiresIn: TOKEN_EXPIRY
 	});
 
-	return { token, user: { id: user.id, username: user.username } };
+	return { token, user: { id: user.id, username: user.username, role: user.role } };
 }
 
 export function verifyToken(token) {
 	try {
 		const decoded = jwt.verify(token, getJwtSecret());
-		return /** @type {{ id: number, username: string }} */ (decoded);
+		return /** @type {{ id: number, username: string, role: string }} */ (decoded);
 	} catch {
 		return null;
 	}

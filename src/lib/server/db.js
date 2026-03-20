@@ -64,6 +64,109 @@ export async function initDb() {
 			INDEX idx_post_id (post_id)
 		)
 	`);
+
+	try {
+		await p.query(`ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'`);
+	} catch (e) {
+		// Ignore if column already exists
+	}
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_tasks (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			description TEXT,
+			due_date DATETIME,
+			status VARCHAR(50) DEFAULT 'Pending',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_shopping (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			item_name VARCHAR(255) NOT NULL,
+			category VARCHAR(255) DEFAULT 'General',
+			status VARCHAR(50) DEFAULT 'Pending',
+			due_date DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_plans (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			description TEXT,
+			target_date DATETIME,
+			status VARCHAR(50) DEFAULT 'Active',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_notes (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			content LONGTEXT,
+			tags JSON,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_timeline (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			action VARCHAR(255) NOT NULL,
+			module VARCHAR(255) NOT NULL,
+			details JSON,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_finances (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			type VARCHAR(50) NOT NULL,
+			category VARCHAR(255) NOT NULL,
+			amount DECIMAL(10, 2) NOT NULL,
+			date DATETIME NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_chat_sessions (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_chat_messages (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			session_id INT NOT NULL,
+			role VARCHAR(50) NOT NULL,
+			content LONGTEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (session_id) REFERENCES self_chat_sessions(id) ON DELETE CASCADE
+		)
+	`);
+
+	await p.query(`
+		CREATE TABLE IF NOT EXISTS self_ai_memory (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			fact_text TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
 }
 
 /**
