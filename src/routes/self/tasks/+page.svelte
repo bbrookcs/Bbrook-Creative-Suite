@@ -1,17 +1,56 @@
 <script>
     import { enhance } from '$app/forms';
     import { fade, slide } from 'svelte/transition';
+    import { onMount, onDestroy } from 'svelte';
 
     let { data, form } = $props();
 
     let filterStatus = $state('All');
     let sortBy = $state('date');
+    let deleteModalTarget = $state(null);
+    let openDropdown = $state(null);
+
+    let now = $state(new Date());
+    let interval;
+
+    onMount(() => {
+        interval = setInterval(() => {
+            now = new Date();
+        }, 60000); // UI updates every minute
+    });
+
+    onDestroy(() => {
+        if (interval) clearInterval(interval);
+    });
+
+    function getTaskStatus(task) {
+        if (task.status === 'Completed' || task.status === 'Canceled') return task.status;
+        if (task.due_date && new Date(task.due_date) < now) return 'Due';
+        return task.status;
+    }
+
+    function getCountdown(dueDate) {
+        if (!dueDate) return '';
+        const diff = new Date(dueDate) - now;
+        if (diff <= 0) return 'Overdue';
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+        
+        if (days > 0) return `${days}d ${hours}h left`;
+        if (hours > 0) return `${hours}h ${mins}m left`;
+        return `${mins}m left`;
+    }
 
     let tasks = $derived.by(() => {
-        let t = [...data.tasks];
+        let t = [...data.tasks].map(task => ({
+            ...task,
+            derivedStatus: getTaskStatus(task)
+        }));
         
         if (filterStatus !== 'All') {
-            t = t.filter(task => task.status === filterStatus);
+            t = t.filter(task => task.derivedStatus === filterStatus);
         }
         
         if (sortBy === 'date') {
@@ -29,7 +68,18 @@
     function getBadgeClass(status) {
         return `badge badge-${status.toLowerCase()}`;
     }
+
+    function toggleDropdown(id, event) {
+        event.stopPropagation();
+        openDropdown = openDropdown === id ? null : id;
+    }
+
+    function closeAllDropdowns() {
+        openDropdown = null;
+    }
 </script>
+
+<svelte:window onclick={closeAllDropdowns} />
 
 <svelte:head>
     <title>Tasks | /self OS</title>
@@ -94,31 +144,52 @@
                 {#each tasks as task (task.id)}
                     <div class="task-item" transition:slide>
                         <div class="task-content">
-                            <h4 class="task-title" class:completed={task.status === 'Completed'}>{task.title}</h4>
+                            <h4 class="task-title" class:completed={task.derivedStatus === 'Completed' || task.derivedStatus === 'Canceled'}>{task.title}</h4>
                             <div class="task-meta">
-                                {#if task.due_date}
+                                <span class={getBadgeClass(task.derivedStatus)}>{task.derivedStatus}</span>
+                                {#if task.due_date && task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}
+                                    <span class="meta-item time-remaining" class:overdue={task.derivedStatus === 'Due'}>
+                                        ⏱ {getCountdown(task.due_date)}
+                                    </span>
+                                {/if}
+                                {#if task.achieved_date}
                                     <span class="meta-item">
-                                        🗓 {new Date(task.due_date).toLocaleDateString()}
+                                        Completed: {new Date(task.achieved_date).toLocaleDateString()}
                                     </span>
                                 {/if}
                             </div>
                         </div>
 
                         <div class="task-actions">
-                            <form action="?/updateStatus" method="POST" use:enhance>
-                                <input type="hidden" name="id" value={task.id} />
-                                <div class="status-dropdown-wrap">
-                                    <select 
-                                        name="status" 
-                                        class="task-status-select {getBadgeClass(task.status)}"
-                                        onchange={(e) => e.target.form.requestSubmit()}
-                                    >
-                                        {#each statusOptions.slice(1) as opt}
-                                            <option value={opt} selected={task.status === opt}>{opt}</option>
-                                        {/each}
-                                    </select>
-                                </div>
-                            </form>
+                            {#if task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}
+                                <form action="?/updateStatus" method="POST" use:enhance class="inline-form">
+                                    <input type="hidden" name="id" value={task.id} />
+                                    <input type="hidden" name="status" value="Completed" />
+                                    <button type="submit" class="btn btn-primary mark-done-btn" title="Mark Done">
+                                        ✓
+                                    </button>
+                                </form>
+                            {/if}
+                            
+                            <div class="dropdown-container">
+                                <button type="button" class="dots-btn" onclick={(e) => toggleDropdown(task.id, e)}>
+                                    ⋮
+                                </button>
+                                {#if openDropdown === task.id}
+                                    <div class="dropdown-menu" transition:fade={{duration: 100}}>
+                                        {#if task.derivedStatus !== 'Canceled' && task.derivedStatus !== 'Completed'}
+                                            <form action="?/updateStatus" method="POST" use:enhance>
+                                                <input type="hidden" name="id" value={task.id} />
+                                                <input type="hidden" name="status" value="Canceled" />
+                                                <button type="submit" class="dropdown-item">Cancel Task</button>
+                                            </form>
+                                        {/if}
+                                        <button type="button" class="dropdown-item danger-text" onclick={() => deleteModalTarget = task.id}>
+                                            Delete Task
+                                        </button>
+                                    </div>
+                                {/if}
+                            </div>
                         </div>
                     </div>
                 {/each}
@@ -126,6 +197,27 @@
         {/if}
     </div>
 </div>
+
+{#if deleteModalTarget}
+    <div class="custom-modal-overlay" onclick={() => deleteModalTarget = null}>
+        <div class="custom-modal card" onclick={(e) => e.stopPropagation()}>
+            <h3>Delete Task</h3>
+            <p>Are you sure you want to delete this task? This action cannot be undone.</p>
+            <form action="?/delete" method="POST" use:enhance={() => {
+                return async ({ update }) => {
+                    await update();
+                    deleteModalTarget = null;
+                };
+            }}>
+                <input type="hidden" name="id" value={deleteModalTarget} />
+                <div class="modal-actions">
+                    <button type="button" class="btn secondary" onclick={() => deleteModalTarget = null}>Cancel</button>
+                    <button type="submit" class="btn danger">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
 
 <style>
     .module-container {
@@ -253,38 +345,112 @@
     .task-actions {
         flex-shrink: 0;
         margin-left: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
-    .status-dropdown-wrap {
-        position: relative;
+    .inline-form {
+        display: inline-block;
+        margin: 0;
+        padding: 0;
     }
 
-    .task-status-select {
-        appearance: none;
-        background: transparent;
-        border: 1px solid transparent;
-        padding: 6px 32px 6px 12px;
-        font-family: inherit;
-        font-size: 0.75rem;
-        font-weight: 600;
-        cursor: pointer;
+    .delete-icon-btn {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: none;
+        width: 32px;
+        height: 32px;
         border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
         transition: all 0.2s;
     }
 
-    .task-status-select:hover {
-        border-color: rgba(255, 255, 255, 0.2);
+    .delete-icon-btn:hover {
+        background: rgba(239, 68, 68, 0.2);
+    }
+
+    .time-remaining {
+        color: #3b82f6;
+        font-weight: 500;
+    }
+    .time-remaining.overdue {
+        color: #ef4444;
+    }
+
+    .mark-done-btn {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        border-radius: 6px;
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .mark-done-btn:hover {
+        background: rgba(16, 185, 129, 0.2);
+    }
+
+    .dropdown-container {
+        position: relative;
+    }
+
+    .dots-btn {
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        line-height: 1;
     }
     
-    .status-dropdown-wrap::after {
-        content: "▼";
-        font-size: 0.6rem;
+    .dots-btn:hover {
+        background: rgba(255,255,255,0.05);
+        color: #cbd5e1;
+    }
+
+    .dropdown-menu {
         position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        pointer-events: none;
-        opacity: 0.6;
+        right: 0;
+        top: 100%;
+        margin-top: 4px;
+        background: #1e222a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        min-width: 140px;
+        z-index: 10;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .dropdown-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 10px 16px;
+        background: transparent;
+        border: none;
+        color: #cbd5e1;
+        font-family: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .dropdown-item:hover {
+        background: #262b36;
+    }
+
+    .danger-text {
+        color: #ef4444 !important;
     }
 
     @media (max-width: 640px) {
@@ -315,5 +481,68 @@
         .task-status-select {
             width: 100%;
         }
+    }
+
+    /* Custom Modals */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .custom-modal {
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        background: #111318;
+    }
+
+    .custom-modal h3 {
+        margin: 0 0 12px 0;
+        color: #f8fafc;
+    }
+
+    .custom-modal p {
+        color: #cbd5e1;
+        margin-bottom: 24px;
+        line-height: 1.5;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-actions .btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn.secondary {
+        background: transparent;
+        color: #cbd5e1;
+        border: 1px solid #262b36;
+    }
+
+    .btn.secondary:hover {
+        background: #1e222a;
+    }
+
+    .btn.danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn.danger:hover {
+        background: #dc2626;
     }
 </style>

@@ -106,7 +106,6 @@ export async function initDb() {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 		)
 	`);
-
 	await p.query(`
 		CREATE TABLE IF NOT EXISTS self_notes (
 			id INT AUTO_INCREMENT PRIMARY KEY,

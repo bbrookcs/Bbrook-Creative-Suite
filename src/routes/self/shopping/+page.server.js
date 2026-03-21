@@ -51,7 +51,12 @@ export const actions = {
         
         if (!id || !status) return fail(400, { missing: true });
         
-        await db.query(`UPDATE self_shopping SET status = ? WHERE id = ?`, [status, id]);
+        let updateQuery = `UPDATE self_shopping SET status = ? WHERE id = ?`;
+        if (status === 'Bought' || status === 'Completed') {
+            updateQuery = `UPDATE self_shopping SET status = ?, achieved_date = CURRENT_TIMESTAMP WHERE id = ?`;
+        }
+        
+        await db.query(updateQuery, [status, id]);
         
         const [item] = await db.query(`SELECT item_name FROM self_shopping WHERE id = ?`, [id]);
         if (Array.isArray(item) && item.length > 0) {
@@ -60,6 +65,23 @@ export const actions = {
                 [`Item ${status}`, 'Shopping', JSON.stringify({ item: item[0].item_name })]
             );
         }
+        
+        
+        return { success: true };
+    },
+    
+    delete: async ({ request }) => {
+        const formData = await request.formData();
+        const id = formData.get('id');
+        
+        if (!id) return fail(400, { missing: true });
+        
+        await db.query(`DELETE FROM self_shopping WHERE id = ?`, [id]);
+        
+        await db.query(
+            `INSERT INTO self_timeline (action, module, details) VALUES (?, ?, ?)`,
+            ['Deleted Item', 'Shopping', JSON.stringify({ id })]
+        );
         
         return { success: true };
     }

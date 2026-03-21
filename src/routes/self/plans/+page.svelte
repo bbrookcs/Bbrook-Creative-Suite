@@ -5,6 +5,7 @@
     let { data, form } = $props();
 
     let showAddForm = $state(false);
+    let deleteModalTarget = $state(null);
 
     let activePlans = $derived(data.plans.filter(p => p.status === 'Active'));
     let achievedPlans = $derived(data.plans.filter(p => p.status === 'Achieved'));
@@ -69,15 +70,24 @@
                         <div class="card plan-card active-highlight" transition:slide>
                             <div class="plan-header">
                                 <h4 class="plan-title">{plan.title}</h4>
-                                <form action="?/updateStatus" method="POST" use:enhance>
-                                    <input type="hidden" name="id" value={plan.id} />
-                                    <input type="hidden" name="status" value="Achieved" />
-                                    <button type="submit" class="finish-btn" title="Mark as Achieved">
-                                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                    </button>
-                                </form>
+                                <div class="plan-actions">
+                                    <form action="?/updateStatus" method="POST" use:enhance class="inline-form">
+                                        <input type="hidden" name="id" value={plan.id} />
+                                        <input type="hidden" name="status" value="Achieved" />
+                                        <button type="submit" class="finish-btn" title="Mark as Achieved">
+                                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </button>
+                                    </form>
+                                    <div class="inline-form">
+                                        <button type="button" class="delete-plan-btn" title="Delete Plan" onclick={() => deleteModalTarget = plan.id}>
+                                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             
                             <p class="plan-desc">{plan.description}</p>
@@ -110,11 +120,23 @@
                         <div class="card plan-card achieved" transition:slide>
                             <div class="plan-header">
                                 <h4 class="plan-title">{plan.title}</h4>
-                                <span class="badge badge-completed">Achieved</span>
+                                <div class="plan-actions">
+                                    <span class="badge badge-completed">Achieved</span>
+                                    <div class="inline-form">
+                                        <button type="button" class="delete-plan-btn outline-btn" title="Delete Plan" onclick={() => deleteModalTarget = plan.id}>
+                                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <p class="plan-desc">{plan.description}</p>
                             <div class="plan-meta">
                                 <span class="meta-label">Target was: {new Date(plan.target_date).toLocaleDateString()}</span>
+                                {#if plan.achieved_date}
+                                    <span class="meta-label" style="display:block; margin-top:4px;">Achieved: {new Date(plan.achieved_date).toLocaleDateString()}</span>
+                                {/if}
                             </div>
                         </div>
                     {/each}
@@ -123,6 +145,27 @@
         {/if}
     </div>
 </div>
+
+{#if deleteModalTarget}
+    <div class="custom-modal-overlay" onclick={() => deleteModalTarget = null}>
+        <div class="custom-modal card" onclick={(e) => e.stopPropagation()}>
+            <h3>Delete Plan</h3>
+            <p>Are you sure you want to completely delete this strategic plan? This action is permanent.</p>
+            <form action="?/delete" method="POST" use:enhance={() => {
+                return async ({ update }) => {
+                    await update();
+                    deleteModalTarget = null;
+                };
+            }}>
+                <input type="hidden" name="id" value={deleteModalTarget} />
+                <div class="modal-actions">
+                    <button type="button" class="btn secondary" onclick={() => deleteModalTarget = null}>Cancel</button>
+                    <button type="submit" class="btn danger">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
 
 <style>
     .module-container {
@@ -243,6 +286,46 @@
         color: #059669;
     }
 
+    .plan-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .inline-form {
+        margin: 0;
+        display: flex;
+    }
+
+    .delete-plan-btn {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .delete-plan-btn:hover {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    
+    .delete-plan-btn.outline-btn {
+        background: transparent;
+        padding: 4px;
+        color: #64748b;
+    }
+    
+    .delete-plan-btn.outline-btn:hover {
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+    }
+
     .plan-desc {
         font-size: 0.9rem;
         color: #cad5e2;
@@ -297,15 +380,78 @@
         overflow: hidden;
     }
 
-    .progress-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-        border-radius: 3px;
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 3px;
+        }
+
+        @media (max-width: 640px) {
+            .row-flex {
+                flex-direction: column;
+            }
+        }
+        
+    /* Custom Modals */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
     }
 
-    @media (max-width: 640px) {
-        .row-flex {
-            flex-direction: column;
-        }
+    .custom-modal {
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        background: #111318;
     }
-</style
+
+    .custom-modal h3 {
+        margin: 0 0 12px 0;
+        color: #f8fafc;
+    }
+
+    .custom-modal p {
+        color: #cbd5e1;
+        margin-bottom: 24px;
+        line-height: 1.5;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-actions .btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn.secondary {
+        background: transparent;
+        color: #cbd5e1;
+        border: 1px solid #262b36;
+    }
+
+    .btn.secondary:hover {
+        background: #1e222a;
+    }
+
+    .btn.danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn.danger:hover {
+        background: #dc2626;
+    }
+</style>

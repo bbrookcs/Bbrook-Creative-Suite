@@ -1,14 +1,49 @@
 <script>
     import { enhance } from '$app/forms';
     import { fade, slide } from 'svelte/transition';
+    import { onMount, onDestroy } from 'svelte';
 
     let { data, form } = $props();
 
     let filterCategory = $state('All');
+    let deleteModalTarget = $state(null);
+    let openDropdown = $state(null);
+
+    let now = $state(new Date());
+    let interval;
+
+    onMount(() => {
+        interval = setInterval(() => { now = new Date(); }, 60000);
+    });
+
+    onDestroy(() => {
+        if (interval) clearInterval(interval);
+    });
+
+    function getItemStatus(item) {
+        if (item.status === 'Bought' || item.status === 'Canceled') return item.status;
+        if (item.due_date && new Date(item.due_date) < now) return 'Due';
+        return item.status;
+    }
+
+    function getCountdown(dueDate) {
+        if (!dueDate) return '';
+        const diff = new Date(dueDate) - now;
+        if (diff <= 0) return 'Overdue';
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+        
+        if (days > 0) return `${days}d ${hours}h left`;
+        if (hours > 0) return `${hours}h ${mins}m left`;
+        return `${mins}m left`;
+    }
+
+    const defaultCategories = ['General', 'Groceries', 'Electronics', 'Home', 'Personal Care', 'Other'];
     
-    // Grouping items by category
     let categories = $derived.by(() => {
-        const cats = new Set(['All']);
+        const cats = new Set(['All', ...defaultCategories]);
         for (const item of data.items) {
             cats.add(item.category);
         }
@@ -16,7 +51,11 @@
     });
 
     let groupedItems = $derived.by(() => {
-        let items = data.items;
+        let items = [...data.items].map(item => ({
+            ...item,
+            derivedStatus: getItemStatus(item)
+        }));
+        
         if (filterCategory !== 'All') {
             items = items.filter(t => t.category === filterCategory);
         }
@@ -37,7 +76,18 @@
         if (status === 'Canceled') return 'badge badge-canceled';
         return 'badge badge-pending';
     }
+
+    function toggleDropdown(id, event) {
+        event.stopPropagation();
+        openDropdown = openDropdown === id ? null : id;
+    }
+
+    function closeAllDropdowns() {
+        openDropdown = null;
+    }
 </script>
+
+<svelte:window onclick={closeAllDropdowns} />
 
 <svelte:head>
     <title>Shopping | /self OS</title>
@@ -57,18 +107,15 @@
                     required 
                     autocomplete="off"
                 />
-                <input 
-                    type="text" 
+                <select 
                     name="category" 
-                    placeholder="Category (e.g. Groceries)" 
-                    class="form-input category-input"
-                    list="category-suggestions"
-                />
-                <datalist id="category-suggestions">
-                    {#each categories.filter(c => c !== 'All') as c}
-                        <option value={c}></option>
+                    class="form-input category-input select-input"
+                    required
+                >
+                    {#each defaultCategories as c}
+                        <option value={c}>{c}</option>
                     {/each}
-                </datalist>
+                </select>
                 <input 
                     type="date" 
                     name="dueDate" 
@@ -112,29 +159,52 @@
                             {#each items as item (item.id)}
                                 <li class="simple-item" transition:slide>
                                     <div class="item-main">
-                                        <h5 class="item-name" class:bought={item.status === 'Bought'}>{item.item_name}</h5>
-                                        {#if item.due_date}
-                                            <span class="item-meta">
-                                                🗓 {new Date(item.due_date).toLocaleDateString()}
-                                            </span>
-                                        {/if}
+                                        <h5 class="item-name" class:bought={item.derivedStatus === 'Bought' || item.derivedStatus === 'Canceled'}>{item.item_name}</h5>
+                                        <div class="task-meta">
+                                            <span class={getBadgeClass(item.derivedStatus)}>{item.derivedStatus}</span>
+                                            {#if item.due_date && item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
+                                                <span class="meta-item time-remaining" class:overdue={item.derivedStatus === 'Due'}>
+                                                    ⏱ {getCountdown(item.due_date)}
+                                                </span>
+                                            {/if}
+                                            {#if item.achieved_date}
+                                                <span class="meta-item">
+                                                    Bought: {new Date(item.achieved_date).toLocaleDateString()}
+                                                </span>
+                                            {/if}
+                                        </div>
                                     </div>
 
-                                    <div class="item-actions">
-                                        <form action="?/updateStatus" method="POST" use:enhance>
-                                            <input type="hidden" name="id" value={item.id} />
-                                            <div class="status-dropdown-wrap">
-                                                <select 
-                                                    name="status" 
-                                                    class="item-status-select {getBadgeClass(item.status)}"
-                                                    onchange={(e) => e.target.form.requestSubmit()}
-                                                >
-                                                    {#each statusOptions as opt}
-                                                        <option value={opt} selected={item.status === opt}>{opt}</option>
-                                                    {/each}
-                                                </select>
-                                            </div>
-                                        </form>
+                                    <div class="task-actions item-actions">
+                                        {#if item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
+                                            <form action="?/updateStatus" method="POST" use:enhance class="inline-form">
+                                                <input type="hidden" name="id" value={item.id} />
+                                                <input type="hidden" name="status" value="Bought" />
+                                                <button type="submit" class="btn btn-primary mark-done-btn" title="Mark Bought">
+                                                    ✓
+                                                </button>
+                                            </form>
+                                        {/if}
+                                        
+                                        <div class="dropdown-container">
+                                            <button type="button" class="dots-btn" onclick={(e) => toggleDropdown(item.id, e)}>
+                                                ⋮
+                                            </button>
+                                            {#if openDropdown === item.id}
+                                                <div class="dropdown-menu" transition:fade={{duration: 100}}>
+                                                    {#if item.derivedStatus !== 'Canceled' && item.derivedStatus !== 'Bought'}
+                                                        <form action="?/updateStatus" method="POST" use:enhance>
+                                                            <input type="hidden" name="id" value={item.id} />
+                                                            <input type="hidden" name="status" value="Canceled" />
+                                                            <button type="submit" class="dropdown-item">Cancel Item</button>
+                                                        </form>
+                                                    {/if}
+                                                    <button type="button" class="dropdown-item danger-text" onclick={() => deleteModalTarget = item.id}>
+                                                        Delete Item
+                                                    </button>
+                                                </div>
+                                            {/if}
+                                        </div>
                                     </div>
                                 </li>
                             {/each}
@@ -145,6 +215,27 @@
         {/if}
     </div>
 </div>
+
+{#if deleteModalTarget}
+    <div class="custom-modal-overlay" onclick={() => deleteModalTarget = null}>
+        <div class="custom-modal card" onclick={(e) => e.stopPropagation()}>
+            <h3>Delete Item</h3>
+            <p>Are you sure you want to completely delete this item from your shopping list?</p>
+            <form action="?/delete" method="POST" use:enhance={() => {
+                return async ({ update }) => {
+                    await update();
+                    deleteModalTarget = null;
+                };
+            }}>
+                <input type="hidden" name="id" value={deleteModalTarget} />
+                <div class="modal-actions">
+                    <button type="button" class="btn secondary" onclick={() => deleteModalTarget = null}>Cancel</button>
+                    <button type="submit" class="btn danger">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
 
 <style>
     .module-container {
@@ -291,46 +382,176 @@
         color: #94a3b8;
     }
 
-    .status-dropdown-wrap {
-        position: relative;
+    .item-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
-    .item-status-select {
-        appearance: none;
-        background: transparent;
-        border: 1px solid transparent;
-        padding: 4px 28px 4px 10px;
-        font-family: inherit;
-        font-size: 0.75rem;
-        font-weight: 600;
-        cursor: pointer;
+    .inline-form {
+        display: inline-block;
+        margin: 0;
+        padding: 0;
+    }
+
+    .delete-icon-btn {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: none;
+        width: 28px;
+        height: 28px;
         border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
         transition: all 0.2s;
     }
 
-    .item-status-select:hover {
-        border-color: rgba(255, 255, 255, 0.2);
-    }
-    
-    .status-dropdown-wrap::after {
-        content: "▼";
-        font-size: 0.5rem;
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        pointer-events: none;
-        opacity: 0.6;
+    .delete-icon-btn:hover {
+        background: rgba(239, 68, 68, 0.2);
     }
 
-    @media (max-width: 768px) {
-        .form-row {
-            flex-direction: column;
-        }
-        
-        .category-input,
-        .date-input {
-            width: 100%;
-        }
+    .time-remaining {
+        color: #3b82f6;
+        font-weight: 500;
+        margin-left: 8px;
+    }
+    .time-remaining.overdue {
+        color: #ef4444;
+    }
+
+    .mark-done-btn {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+        border-radius: 4px;
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .mark-done-btn:hover {
+        background: rgba(16, 185, 129, 0.2);
+    }
+
+    .dropdown-container {
+        position: relative;
+    }
+
+    .dots-btn {
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        line-height: 1;
+    }
+    
+    .dots-btn:hover {
+        background: rgba(255,255,255,0.05);
+        color: #cbd5e1;
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 4px;
+        background: #1e222a;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        min-width: 140px;
+        z-index: 10;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .dropdown-item {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 10px 16px;
+        background: transparent;
+        border: none;
+        color: #cbd5e1;
+        font-family: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .dropdown-item:hover {
+        background: #262b36;
+    }
+
+    .danger-text {
+        color: #ef4444 !important;
+    }
+
+    /* Custom Modals */
+    .custom-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .custom-modal {
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        background: #111318;
+    }
+
+    .custom-modal h3 {
+        margin: 0 0 12px 0;
+        color: #f8fafc;
+    }
+
+    .custom-modal p {
+        color: #cbd5e1;
+        margin-bottom: 24px;
+        line-height: 1.5;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-actions .btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn.secondary {
+        background: transparent;
+        color: #cbd5e1;
+        border: 1px solid #262b36;
+    }
+
+    .btn.secondary:hover {
+        background: #1e222a;
+    }
+
+    .btn.danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn.danger:hover {
+        background: #dc2626;
     }
 </style>
