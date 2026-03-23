@@ -27,7 +27,7 @@
             </div>
             <div class="summary-details">
                 <span class="summary-label">Monthly Income</span>
-                <span class="summary-value income">${Number(data.monthlyIncome).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value income">{Number(data.monthlyIncome).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         </div>
 
@@ -39,7 +39,7 @@
             </div>
             <div class="summary-details">
                 <span class="summary-label">Monthly Expenses</span>
-                <span class="summary-value expense">${Number(data.monthlyExpense).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value expense">{Number(data.monthlyExpense).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         </div>
 
@@ -51,7 +51,7 @@
             </div>
             <div class="summary-details">
                 <span class="summary-label">Net Balance</span>
-                <span class="summary-value balance">${Math.abs(data.netBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value balance">{Math.abs(data.netBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         </div>
     </div>
@@ -79,7 +79,7 @@
                             <input type="text" id="category" name="category" placeholder="e.g. Salary, Groceries..." class="form-input" required />
                         </div>
                         <div style="width: 140px;">
-                            <label class="form-label" for="amount">Amount ($)</label>
+                            <label class="form-label" for="amount">Amount (ETB)</label>
                             <input type="number" id="amount" name="amount" min="0" step="0.01" placeholder="0.00" class="form-input" required />
                         </div>
                     </div>
@@ -137,7 +137,7 @@
                                     <span class="tx-date">{new Date(tx.date).toLocaleDateString()}</span>
                                 </div>
                                 <div class="tx-amount {tx.type}">
-                                    {tx.type === 'income' ? '+' : '-'}${Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {tx.type === 'income' ? '+' : '-'}{Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                                 <form action="?/delete" method="POST" use:enhance class="delete-form">
                                     <input type="hidden" name="id" value={tx.id} />

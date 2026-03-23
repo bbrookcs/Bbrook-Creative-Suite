@@ -21,6 +21,8 @@ export async function login(username, password) {
 		expiresIn: TOKEN_EXPIRY
 	});
 
+	await db.query('UPDATE users SET last_login = NOW(), last_active = NOW() WHERE id = ?', [user.id]);
+
 	return { token, user: { id: user.id, username: user.username, role: user.role } };
 }
 

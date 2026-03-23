@@ -13,7 +13,7 @@
     let interval;
 
     onMount(() => {
-        interval = setInterval(() => { now = new Date(); }, 60000);
+        interval = setInterval(() => { now = new Date(); }, 1000);
     });
 
     onDestroy(() => {
@@ -34,10 +34,11 @@
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
         const mins = Math.floor((diff / 1000 / 60) % 60);
+        const secs = Math.floor((diff / 1000) % 60);
         
-        if (days > 0) return `${days}d ${hours}h left`;
-        if (hours > 0) return `${hours}h ${mins}m left`;
-        return `${mins}m left`;
+        if (days > 0) return `${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+        if (hours > 0) return `${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+        return `${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
     }
 
     const defaultCategories = ['General', 'Groceries', 'Electronics', 'Home', 'Personal Care', 'Other'];
@@ -160,22 +161,23 @@
                                 <li class="simple-item" transition:slide>
                                     <div class="item-main">
                                         <h5 class="item-name" class:bought={item.derivedStatus === 'Bought' || item.derivedStatus === 'Canceled'}>{item.item_name}</h5>
-                                        <div class="task-meta">
-                                            <span class={getBadgeClass(item.derivedStatus)}>{item.derivedStatus}</span>
-                                            {#if item.due_date && item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
-                                                <span class="meta-item time-remaining" class:overdue={item.derivedStatus === 'Due'}>
-                                                    ⏱ {getCountdown(item.due_date)}
-                                                </span>
-                                            {/if}
-                                            {#if item.achieved_date}
+                                        {#if item.achieved_date}
+                                            <div class="task-meta">
                                                 <span class="meta-item">
                                                     Bought: {new Date(item.achieved_date).toLocaleDateString()}
                                                 </span>
-                                            {/if}
-                                        </div>
+                                            </div>
+                                        {/if}
                                     </div>
 
+                                    {#if item.due_date && item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
+                                        <div class="task-timer time-remaining" class:overdue={item.derivedStatus === 'Due'}>
+                                            ⏱ {getCountdown(item.due_date)}
+                                        </div>
+                                    {/if}
+
                                     <div class="task-actions item-actions">
+                                        <span class={getBadgeClass(item.derivedStatus)}>{item.derivedStatus}</span>
                                         {#if item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
                                             <form action="?/updateStatus" method="POST" use:enhance class="inline-form">
                                                 <input type="hidden" name="id" value={item.id} />
@@ -412,10 +414,17 @@
         background: rgba(239, 68, 68, 0.2);
     }
 
+    .task-timer {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        font-size: 0.95rem;
+        margin: 0 16px;
+        white-space: nowrap;
+    }
+
     .time-remaining {
-        color: #3b82f6;
+        color: #44f63b;
         font-weight: 500;
-        margin-left: 8px;
     }
     .time-remaining.overdue {
         color: #ef4444;

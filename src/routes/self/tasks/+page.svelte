@@ -16,7 +16,7 @@
     onMount(() => {
         interval = setInterval(() => {
             now = new Date();
-        }, 60000); // UI updates every minute
+        }, 1000); // UI updates every second
     });
 
     onDestroy(() => {
@@ -37,10 +37,11 @@
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
         const mins = Math.floor((diff / 1000 / 60) % 60);
+        const secs = Math.floor((diff / 1000) % 60);
         
-        if (days > 0) return `${days}d ${hours}h left`;
-        if (hours > 0) return `${hours}h ${mins}m left`;
-        return `${mins}m left`;
+        if (days > 0) return `${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+        if (hours > 0) return `${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+        return `${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
     }
 
     let tasks = $derived.by(() => {
@@ -145,22 +146,23 @@
                     <div class="task-item" transition:slide>
                         <div class="task-content">
                             <h4 class="task-title" class:completed={task.derivedStatus === 'Completed' || task.derivedStatus === 'Canceled'}>{task.title}</h4>
-                            <div class="task-meta">
-                                <span class={getBadgeClass(task.derivedStatus)}>{task.derivedStatus}</span>
-                                {#if task.due_date && task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}
-                                    <span class="meta-item time-remaining" class:overdue={task.derivedStatus === 'Due'}>
-                                        ⏱ {getCountdown(task.due_date)}
-                                    </span>
-                                {/if}
-                                {#if task.achieved_date}
+                            {#if task.achieved_date}
+                                <div class="task-meta">
                                     <span class="meta-item">
                                         Completed: {new Date(task.achieved_date).toLocaleDateString()}
                                     </span>
-                                {/if}
-                            </div>
+                                </div>
+                            {/if}
                         </div>
 
+                        {#if task.due_date && task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}
+                            <div class="task-timer time-remaining" class:overdue={task.derivedStatus === 'Due'}>
+                                ⏱ {getCountdown(task.due_date)}
+                            </div>
+                        {/if}
+
                         <div class="task-actions">
+                            <span class={getBadgeClass(task.derivedStatus)}>{task.derivedStatus}</span>
                             {#if task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}
                                 <form action="?/updateStatus" method="POST" use:enhance class="inline-form">
                                     <input type="hidden" name="id" value={task.id} />
@@ -374,8 +376,16 @@
         background: rgba(239, 68, 68, 0.2);
     }
 
+    .task-timer {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        font-size: 0.95rem;
+        margin: 0 16px;
+        white-space: nowrap;
+    }
+
     .time-remaining {
-        color: #3b82f6;
+        color: #44f63b;
         font-weight: 500;
     }
     .time-remaining.overdue {

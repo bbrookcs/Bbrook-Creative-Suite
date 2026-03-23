@@ -25,6 +25,9 @@ export async function initDb() {
 			id INT AUTO_INCREMENT PRIMARY KEY,
 			username VARCHAR(255) UNIQUE NOT NULL,
 			password VARCHAR(255) NOT NULL,
+			role VARCHAR(20) DEFAULT 'viewer',
+			last_login DATETIME NULL,
+			last_active DATETIME NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
 	`);
@@ -65,11 +68,6 @@ export async function initDb() {
 		)
 	`);
 
-	try {
-		await p.query(`ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'`);
-	} catch (e) {
-		// Ignore if column already exists
-	}
 
 	await p.query(`
 		CREATE TABLE IF NOT EXISTS self_tasks (

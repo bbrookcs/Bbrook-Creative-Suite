@@ -1,6 +1,6 @@
 <script>
     import { slide } from 'svelte/transition';
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { goto } from '$app/navigation';
     import { marked } from 'marked';
 
@@ -69,6 +69,8 @@
         chatHistory = data.initialMessages.length 
             ? data.initialMessages.map(m => ({ role: m.role, text: m.text })) 
             : [{ role: 'assistant', text: "Hello brook. How can I help you today?" }];
+            
+        tick().then(() => scrollToBottom());
     });
     
     let chatContainer;
@@ -87,7 +89,8 @@
         chatHistory = currentMessages;
         prompt = '';
         
-        setTimeout(() => scrollToBottom(), 50);
+        await tick();
+        scrollToBottom(true);
 
         isThinking = true;
         
@@ -116,18 +119,33 @@
             chatHistory = [...chatHistory, { role: 'assistant', text: "Network connection failed. Unable to reach intelligence server." }];
         } finally {
             isThinking = false;
-            setTimeout(() => scrollToBottom(), 50);
+            await tick();
+            scrollToBottom(true);
         }
     }
     
-    function scrollToBottom() {
-        if (chatContainer) {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+    function scrollToBottom(smooth = false) {
+        if (!chatContainer) return;
+        const doScroll = () => {
+            if (!chatContainer) return;
+            if (smooth) {
+                chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+            } else {
+                // scrollTop assignment is more reliable than scrollTo for large content
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        };
+        // Fire immediately, then retry as markdown/images progressively render
+        doScroll();
+        setTimeout(doScroll, 50);
+        setTimeout(doScroll, 200);
+        setTimeout(doScroll, 500);
     }
     
     onMount(() => {
         scrollToBottom();
+        // Extra safety net for long previous conversations with markdown
+        setTimeout(() => scrollToBottom(), 500);
     });
 </script>
 
@@ -198,28 +216,16 @@
     </div>
 
     <div class="chat-wrapper card">
-        <div class="chat-header">
-            <button class="ai-avatar" onclick={() => mobileSidebarOpen = !mobileSidebarOpen} style="cursor: pointer; border: none; outline: none;">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-            </button>
-            <div>
-                <h2 class="chat-title">Self Intelligence</h2>
-            </div>
-        </div>
+        <button class="mobile-menu-btn" onclick={() => mobileSidebarOpen = !mobileSidebarOpen}>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="22" height="22">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
 
         <div class="chat-history" bind:this={chatContainer}>
             {#each chatHistory as msg}
                 <div class="message-row {msg.role}" transition:slide>
                     <div class="message-bubble {msg.role}">
-                        {#if msg.role === 'assistant'}
-                            <div class="bubble-icon">
-                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                            </div>
-                        {/if}
                         <div class="bubble-text">
                             {#if msg.role === 'assistant'}
                                 {@html marked.parse(msg.text)}
@@ -234,11 +240,6 @@
             {#if isThinking}
                 <div class="message-row assistant" transition:slide>
                     <div class="message-bubble assistant thinking-bubble">
-                        <div class="bubble-icon">
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                        </div>
                         <div class="thinking-dots">
                             <div class="dot"></div>
                             <div class="dot"></div>
@@ -313,9 +314,9 @@
         gap: 8px;
         width: 100%;
         padding: 10px 16px;
-        background: rgba(37, 99, 235, 0.1);
-        color: #3b82f6;
-        border: 1px solid rgba(37, 99, 235, 0.2);
+        background: rgba(102, 13, 97, 0.15);
+        color: #c94cc3;
+        border: 1px solid rgba(102, 13, 97, 0.3);
         border-radius: 8px;
         cursor: pointer;
         font-weight: 500;
@@ -323,7 +324,7 @@
     }
 
     .new-chat-btn:hover {
-        background: rgba(37, 99, 235, 0.2);
+        background: rgba(102, 13, 97, 0.3);
     }
 
     .sessions-list {
@@ -464,37 +465,8 @@
         overflow: hidden;
     }
 
-    .chat-header {
-        padding: 15px 20px;
-        border-bottom: 1px solid #262b36;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        background: #111318;
-    }
-
-    .ai-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #2563eb, #8b5cf6);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-    }
-
-    .chat-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
-        color: #f8fafc;
-    }
-
-    .chat-subtitle {
-        font-size: 0.8rem;
-        color: #64748b;
-        margin: 2px 0 0 0;
+    .mobile-menu-btn {
+        display: none;
     }
 
     .chat-history {
@@ -531,7 +503,7 @@
     }
 
     .message-bubble.user {
-        background: #2563eb;
+        background: #660d61;
         color: #ffffff;
         border-bottom-right-radius: 4px;
     }
@@ -628,9 +600,7 @@
     }
 
     .chat-input-area {
-        padding: 20px 24px;
-        background: #111318;
-        border-top: 1px solid #262b36;
+        padding: 10px 20px;
         display: flex;
         align-items: flex-end;
         gap: 16px;
@@ -653,7 +623,7 @@
     }
 
     .prompt-input:focus {
-        border-color: #3b82f6;
+        border-color: #9a1892;
     }
 
     .prompt-input::placeholder {
@@ -661,7 +631,7 @@
     }
 
     .send-btn {
-        background: #2563eb;
+        background: #660d61;
         color: white;
         border: none;
         width: 48px;
@@ -676,7 +646,7 @@
     }
 
     .send-btn:hover:not(:disabled) {
-        background: #1d4ed8;
+        background: #4d0948;
     }
 
     .send-btn:disabled {
@@ -688,8 +658,38 @@
     @media (max-width: 860px) {
         .ai-container {
             flex-direction: column;
-            height: calc(100vh - 100px);
-            max-width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            bottom: 64px;
+            height: auto;
+            max-width: none;
+            margin: 0;
+            z-index: 40;
+            background: #0f1115;
+        }
+        .chat-wrapper {
+            border-radius: 0;
+            border: none;
+            height: 100%;
+        }
+        .mobile-menu-btn {
+            display: flex;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 50;
+            background: rgba(30, 34, 42, 0.8);
+            backdrop-filter: blur(4px);
+            border: 1px solid #334155;
+            color: #f8fafc;
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
 
         .mobile-overlay {
@@ -747,13 +747,21 @@
             opacity: 1; /* Always show options button on mobile */
         }
         
-        .chat-header, .chat-history, .chat-input-area {
-            padding: 16px;
+        .chat-history {
+            padding: 60px 10px 10px 10px;
+        }
+
+        .chat-input-area {
+            padding: 5px 10px;
         }
 
         .message-bubble {
             max-width: 90%;
-            padding: 12px 16px;
+            padding: 10px;
+        }
+        
+        .message-bubble.assistant {
+            max-width: 96%;
         }
     }
 
