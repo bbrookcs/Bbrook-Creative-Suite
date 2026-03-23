@@ -1,6 +1,6 @@
 <script>
     import { slide } from 'svelte/transition';
-    import { onMount, tick } from 'svelte';
+    import { onMount, tick, onDestroy } from 'svelte';
     import { goto } from '$app/navigation';
     import { marked } from 'marked';
 
@@ -16,6 +16,87 @@
     
     let activeDropdownId = $state(null);
     let actionModal = $state(null);
+    
+    // Text-to-Speech State
+    let isSpeaking = $state(false);
+    let speakingIndex = $state(-1);
+    let isLoadingAudio = $state(false);
+    let currentAudio = null;
+    let selectedVoice = $state('echo');
+
+    async function toggleSpeech(text, index, voice) {
+        if (voice) {
+            selectedVoice = voice;
+        }
+
+        if (isSpeaking && speakingIndex === index) {
+            // Stop playing
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            isSpeaking = false;
+            speakingIndex = -1;
+            return;
+        }
+
+        // Stop any current speech before starting new one
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        }
+
+        speakingIndex = index;
+        isLoadingAudio = true;
+        
+        try {
+            // Strip out some common markdown symbols
+            const cleanText = text.replace(/[*#_`~]/g, '');
+
+            const res = await fetch('/self/ai/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: cleanText, voice: selectedVoice })
+            });
+
+            if (!res.ok) {
+                console.error("Failed to fetch audio from server");
+                isLoadingAudio = false;
+                speakingIndex = -1;
+                return;
+            }
+
+            const audioBlob = await res.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            currentAudio = new Audio(audioUrl);
+            currentAudio.onended = () => {
+                isSpeaking = false;
+                speakingIndex = -1;
+                URL.revokeObjectURL(audioUrl);
+            };
+            currentAudio.onerror = () => {
+                isSpeaking = false;
+                speakingIndex = -1;
+                isLoadingAudio = false;
+            };
+
+            await currentAudio.play();
+            isSpeaking = true;
+            isLoadingAudio = false;
+        } catch (error) {
+            console.error("TTS playback error:", error);
+            isSpeaking = false;
+            speakingIndex = -1;
+            isLoadingAudio = false;
+        }
+    }
+    
+    onDestroy(() => {
+        if (currentAudio) {
+            currentAudio.pause();
+        }
+    });
 
     async function handleDeleteConfirm() {
         if (!actionModal || actionModal.type !== 'delete') return;
@@ -112,6 +193,9 @@
                     goto(`/self/ai?session=${currentSessionId}`, { replaceState: true, noScroll: true });
                     sessions = [{id: currentSessionId, title: resData.title || currentMessages[0].text.substring(0,30)}, ...sessions];
                 }
+
+                // Automatically read aloud the new response
+                toggleSpeech(resData.reply, chatHistory.length - 1, selectedVoice);
             } else {
                 chatHistory = [...chatHistory, { role: 'assistant', text: "System Error: " + (resData.error || "Could not connect to AI node.") }];
             }
@@ -223,14 +307,49 @@
         </button>
 
         <div class="chat-history" bind:this={chatContainer}>
-            {#each chatHistory as msg}
+            {#each chatHistory as msg, i}
                 <div class="message-row {msg.role}" transition:slide>
                     <div class="message-bubble {msg.role}">
-                        <div class="bubble-text">
+                        <div class="bubble-content-wrapper">
+                            <div class="bubble-text">
+                                {#if msg.role === 'assistant'}
+                                    {@html marked.parse(msg.text)}
+                                {:else}
+                                    {msg.text}
+                                {/if}
+                            </div>
+                            
                             {#if msg.role === 'assistant'}
-                                {@html marked.parse(msg.text)}
-                            {:else}
-                                {msg.text}
+                                <div class="message-actions">
+                                    <div class="tts-hover-container">
+                                        <button class="tts-btn {(isSpeaking || isLoadingAudio) && speakingIndex === i ? 'playing' : ''}" aria-label="Read Aloud" onclick={() => toggleSpeech(msg.text, i)} title={(isSpeaking || isLoadingAudio) && speakingIndex === i ? "Stop speaking" : "Read aloud"} disabled={isLoadingAudio && speakingIndex !== i}>
+                                            {#if isLoadingAudio && speakingIndex === i}
+                                                <svg class="animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                voice...
+                                            {:else if isSpeaking && speakingIndex === i}
+                                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+                                                    <rect x="7" y="7" width="10" height="10" fill="currentColor" stroke="none"/>
+                                                </svg>
+                                                Stop
+                                            {:else}
+                                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 001.707-.707V5a1 1 0 00-1.707-.707L10.293 7.707A1 1 0 019.586 8H7a2 2 0 00-2 2z" />
+                                                </svg>
+                                            {/if}
+                                        </button>
+                                        
+                                        <!-- Voice Hover Menu -->
+                                        {#if !isSpeaking && !isLoadingAudio}
+                                            <div class="tts-voice-menu">
+                                                <button class={selectedVoice === 'alloy' ? 'active' : ''} onclick={() => toggleSpeech(msg.text, i, 'alloy')}>Alloy</button>
+                                                <button class={selectedVoice === 'echo' ? 'active' : ''} onclick={() => toggleSpeech(msg.text, i, 'echo')}>Echo</button>
+                                                <button class={selectedVoice === 'nova' ? 'active' : ''} onclick={() => toggleSpeech(msg.text, i, 'nova')}>Nova</button>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                </div>
                             {/if}
                         </div>
                     </div>
@@ -570,6 +689,114 @@
         justify-content: center;
         flex-shrink: 0;
         margin-top: 2px;
+    }
+
+    .bubble-content-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .message-actions {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 4px;
+    }
+
+    .tts-hover-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .tts-voice-menu {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        margin-bottom: 6px;
+        background: #1e222a;
+        border: 1px solid #262b36;
+        border-radius: 8px;
+        padding: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(5px);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        min-width: 90px;
+    }
+
+    .tts-hover-container:hover .tts-voice-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    .tts-voice-menu button {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.1s ease;
+    }
+
+    .tts-voice-menu button:hover {
+        background: #262b36;
+        color: #f8fafc;
+    }
+
+    .tts-voice-menu button.active {
+        color: #c94cc3;
+        font-weight: 500;
+        background: rgba(102, 13, 97, 0.15);
+    }
+
+    .tts-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #94a3b8;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .tts-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #f8fafc;
+    }
+
+    .tts-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .tts-btn.playing {
+        background: rgba(102, 13, 97, 0.3);
+        border-color: rgba(102, 13, 97, 0.5);
+        color: #c94cc3;
+    }
+
+    .animate-spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
     }
 
     .thinking-bubble {

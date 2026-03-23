@@ -60,8 +60,8 @@ PERMANENT GLOBAL MEMORY (use [ID:X] to delete a specific memory with delete_memo
 ${memory.length ? memory.map(m => `- [ID:${m.id}] ${m.fact_text}`).join('\n') : 'No facts saved yet.'}
 
 FINANCIALS:
-- Income This Month: $${monthlyIncome}
-- Lifetime Recorded Expenses: $${totalExpenses}
+- Income This Month: ${monthlyIncome}
+- Lifetime Recorded Expenses: ${totalExpenses}
         `;
 
         // 3. Model Configuration with Tools
