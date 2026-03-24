@@ -5,6 +5,7 @@
 
     let { data, form } = $props();
 
+    let showAddForm = $state(false);
     let filterCategory = $state('All');
     let deleteModalTarget = $state(null);
     let openDropdown = $state(null);
@@ -95,41 +96,50 @@
 </svelte:head>
 
 <div class="module-container">
-    <!-- QUICK ADD -->
-    <div class="card add-card">
-        <h3 class="card-title">Quick Add to Shopping List</h3>
-        <form action="?/add" method="POST" use:enhance class="quick-add-form">
-            <div class="form-row">
-                <input 
-                    type="text" 
-                    name="itemName" 
-                    placeholder="Item name..." 
-                    class="form-input flex-grow" 
-                    required 
-                    autocomplete="off"
-                />
-                <select 
-                    name="category" 
-                    class="form-input category-input select-input"
-                    required
-                >
-                    {#each defaultCategories as c}
-                        <option value={c}>{c}</option>
-                    {/each}
-                </select>
-                <input 
-                    type="date" 
-                    name="dueDate" 
-                    class="form-input date-input"
-                    title="Optional due date"
-                />
-                <button type="submit" class="btn btn-primary">Add Item</button>
-            </div>
-            {#if form?.missing}
-                <p class="error-msg">Item name is required.</p>
-            {/if}
-        </form>
+    <div class="header-actions">
+        <h2 class="module-title">Shopping List</h2>
+        <button class="btn btn-primary" onclick={() => showAddForm = !showAddForm}>
+            {showAddForm ? 'Cancel' : 'New Item'}
+        </button>
     </div>
+
+    {#if showAddForm}
+        <!-- QUICK ADD -->
+        <div class="card add-card" transition:slide>
+            <h3 class="card-title">Quick Add to Shopping List</h3>
+            <form action="?/add" method="POST" use:enhance class="quick-add-form">
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        name="itemName" 
+                        placeholder="Item name..." 
+                        class="form-input flex-grow" 
+                        required 
+                        autocomplete="off"
+                    />
+                    <select 
+                        name="category" 
+                        class="form-input category-input select-input"
+                        required
+                    >
+                        {#each defaultCategories as c}
+                            <option value={c}>{c}</option>
+                        {/each}
+                    </select>
+                    <input 
+                        type="date" 
+                        name="dueDate" 
+                        class="form-input date-input"
+                        title="Optional due date"
+                    />
+                    <button type="submit" class="btn btn-primary">Add Item</button>
+                </div>
+                {#if form?.missing}
+                    <p class="error-msg">Item name is required.</p>
+                {/if}
+            </form>
+        </div>
+    {/if}
 
     <!-- MAIN LIST -->
     <div class="card list-card">
@@ -246,6 +256,21 @@
         gap: 24px;
         max-width: 900px;
         margin: 0 auto;
+    }
+
+    .header-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #262b36;
+        padding-bottom: 20px;
+    }
+
+    .module-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0;
+        color: #f8fafc;
     }
 
     .add-card {
@@ -499,6 +524,32 @@
 
     .danger-text {
         color: #ef4444 !important;
+    }
+
+    @media (max-width: 640px) {
+        .form-row {
+            flex-direction: column;
+        }
+        
+        .list-controls {
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .category-input,
+        .date-input {
+            width: 100%;
+        }
+
+        .simple-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .item-actions {
+            width: 100%;
+        }
     }
 
     /* Custom Modals */

@@ -6,6 +6,7 @@
     let { data, form } = $props();
 
     let filterStatus = $state('All');
+    let showAddForm = $state(false);
     let sortBy = $state('date');
     let deleteModalTarget = $state(null);
     let openDropdown = $state(null);
@@ -87,31 +88,40 @@
 </svelte:head>
 
 <div class="module-container">
-    <!-- QUICK ADD -->
-    <div class="card add-card">
-        <h3 class="card-title">Quick Add Task</h3>
-        <form action="?/add" method="POST" use:enhance class="quick-add-form">
-            <div class="form-row">
-                <input 
-                    type="text" 
-                    name="title" 
-                    placeholder="Task title..." 
-                    class="form-input flex-grow" 
-                    required 
-                    autocomplete="off"
-                />
-                <input 
-                    type="date" 
-                    name="dueDate" 
-                    class="form-input date-input"
-                />
-                <button type="submit" class="btn btn-primary">Add Task</button>
-            </div>
-            {#if form?.missing}
-                <p class="error-msg">Task title is required.</p>
-            {/if}
-        </form>
+    <div class="header-actions">
+        <h2 class="module-title">Tasks</h2>
+        <button class="btn btn-primary" onclick={() => showAddForm = !showAddForm}>
+            {showAddForm ? 'Cancel' : 'New Task'}
+        </button>
     </div>
+
+    {#if showAddForm}
+        <!-- QUICK ADD -->
+        <div class="card add-card" transition:slide>
+            <h3 class="card-title">Quick Add Task</h3>
+            <form action="?/add" method="POST" use:enhance class="quick-add-form">
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        name="title" 
+                        placeholder="Task title..." 
+                        class="form-input flex-grow" 
+                        required 
+                        autocomplete="off"
+                    />
+                    <input 
+                        type="date" 
+                        name="dueDate" 
+                        class="form-input date-input"
+                    />
+                    <button type="submit" class="btn btn-primary">Add Task</button>
+                </div>
+                {#if form?.missing}
+                    <p class="error-msg">Task title is required.</p>
+                {/if}
+            </form>
+        </div>
+    {/if}
 
     <!-- FILTERS AND LIST -->
     <div class="card list-card">
@@ -124,13 +134,7 @@
                     {/each}
                 </select>
             </div>
-            <div class="filter-group">
-                <label for="sort" class="control-label">Sort By</label>
-                <select id="sort" class="form-input select-input" bind:value={sortBy}>
-                    <option value="status">Status Priority</option>
-                    <option value="date">Due Date</option>
-                </select>
-            </div>
+            
         </div>
 
         {#if tasks.length === 0}
@@ -228,6 +232,21 @@
         gap: 24px;
         max-width: 900px;
         margin: 0 auto;
+    }
+
+    .header-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #262b36;
+        padding-bottom: 20px;
+    }
+
+    .module-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0;
+        color: #f8fafc;
     }
 
     .add-card {
