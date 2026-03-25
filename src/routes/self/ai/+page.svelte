@@ -103,16 +103,17 @@
         const id = actionModal.id;
         actionModal = null;
         
-        sessions = sessions.filter(s => s.id !== id);
-        if (currentSessionId === id || sessions.length === 0) {
-            goto('/self/ai');
-        }
-        
         await fetch('/self/ai/session', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         });
+
+        if (currentSessionId === id) {
+            goto('/self/ai');
+        } else {
+            sessions = sessions.filter(s => s.id !== id);
+        }
     }
 
     async function handleRenameConfirm() {
@@ -194,8 +195,8 @@
                     sessions = [{id: currentSessionId, title: resData.title || currentMessages[0].text.substring(0,30)}, ...sessions];
                 }
 
-                // Automatically read aloud the new response
-                toggleSpeech(resData.reply, chatHistory.length - 1, selectedVoice);
+                // Removed automatic read aloud so the user can click to play.
+                // toggleSpeech(resData.reply, chatHistory.length - 1, selectedVoice);
             } else {
                 chatHistory = [...chatHistory, { role: 'assistant', text: "System Error: " + (resData.error || "Could not connect to AI node.") }];
             }
@@ -254,7 +255,7 @@
             </button>
         </div>
 
-        <button class="new-chat-btn" onclick={() => { goto('/self/ai'); mobileSidebarOpen = false; }}>
+        <button class="new-chat-btn" onclick={() => { goto('/self/ai?new=true'); mobileSidebarOpen = false; }}>
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
