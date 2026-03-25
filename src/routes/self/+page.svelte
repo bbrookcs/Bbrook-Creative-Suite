@@ -1,5 +1,37 @@
 <script>
+    import { onMount, onDestroy } from 'svelte';
+
     let { data } = $props();
+
+    let now = $state(new Date());
+    let interval;
+
+    onMount(() => {
+        interval = setInterval(() => { now = new Date(); }, 1000);
+    });
+
+    onDestroy(() => {
+        if (interval) clearInterval(interval);
+    });
+
+    function getEndOfDay(dateInput) {
+        if (!dateInput) return new Date();
+        const d = new Date(dateInput);
+        if (typeof dateInput === 'string') {
+            const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (match) {
+                return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10), 23, 59, 59, 999);
+            }
+        }
+        d.setHours(23, 59, 59, 999);
+        return d;
+    }
+
+    function getTaskStatus(task) {
+        if (task.status === 'Completed' || task.status === 'Canceled') return task.status;
+        if (task.due_date && getEndOfDay(task.due_date) < now) return 'Due';
+        return task.status;
+    }
 </script>
 
 <svelte:head>
@@ -39,6 +71,7 @@
             {:else}
                 <ul class="item-list">
                     {#each data.upcomingTasks as task}
+                        {@const derivedStatus = getTaskStatus(task)}
                         <li class="list-item">
                             <div class="item-main">
                                 <span class="item-title">{task.title}</span>
@@ -48,7 +81,7 @@
                                     </span>
                                 {/if}
                             </div>
-                            <span class="badge badge-{task.status.toLowerCase()}">{task.status}</span>
+                            <span class="badge badge-{derivedStatus.toLowerCase()}">{derivedStatus.toUpperCase()}</span>
                         </li>
                     {/each}
                 </ul>

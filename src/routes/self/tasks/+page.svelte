@@ -24,15 +24,29 @@
         if (interval) clearInterval(interval);
     });
 
+    function getEndOfDay(dateInput) {
+        if (!dateInput) return new Date();
+        const d = new Date(dateInput);
+        if (typeof dateInput === 'string') {
+            const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (match) {
+                return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10), 23, 59, 59, 999);
+            }
+        }
+        d.setHours(23, 59, 59, 999);
+        return d;
+    }
+
     function getTaskStatus(task) {
         if (task.status === 'Completed' || task.status === 'Canceled') return task.status;
-        if (task.due_date && new Date(task.due_date) < now) return 'Due';
+        if (task.due_date && getEndOfDay(task.due_date) < now) return 'Due';
         return task.status;
     }
 
     function getCountdown(dueDate) {
         if (!dueDate) return '';
-        const diff = new Date(dueDate) - now;
+        const due = getEndOfDay(dueDate);
+        const diff = due - now;
         if (diff <= 0) return 'Overdue';
         
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));

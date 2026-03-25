@@ -1,9 +1,9 @@
 import db from '$lib/server/db.js';
 
 export const load = async () => {
-    // Basic stats
-    const [[{ pendingTasks }]] = await db.query(`SELECT COUNT(*) as pendingTasks FROM self_tasks WHERE status = 'Pending'`);
-    const [[{ pendingShopping }]] = await db.query(`SELECT COUNT(*) as pendingShopping FROM self_shopping WHERE status = 'Pending'`);
+    // Basic stats (Exclude overdue items by checking if they are >= CURRENT_DATE)
+    const [[{ pendingTasks }]] = await db.query(`SELECT COUNT(*) as pendingTasks FROM self_tasks WHERE status = 'Pending' AND (due_date IS NULL OR due_date >= CURRENT_DATE())`);
+    const [[{ pendingShopping }]] = await db.query(`SELECT COUNT(*) as pendingShopping FROM self_shopping WHERE status = 'Pending' AND (due_date IS NULL OR due_date >= CURRENT_DATE())`);
     const [[{ activePlans }]] = await db.query(`SELECT COUNT(*) as activePlans FROM self_plans WHERE status = 'Active'`);
     
     // Monthly Income
