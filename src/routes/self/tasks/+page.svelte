@@ -69,13 +69,26 @@
             t = t.filter(task => task.derivedStatus === filterStatus);
         }
         
-        if (sortBy === 'date') {
-            t.sort((a, b) => {
-                if (!a.due_date) return 1;
-                if (!b.due_date) return -1;
-                return new Date(a.due_date) - new Date(b.due_date);
-            });
-        }
+        const statusOrder = {
+            'Due': 1,
+            'Pending': 2,
+            'Canceled': 3,
+            'Completed': 4
+        };
+
+        t.sort((a, b) => {
+            const orderA = statusOrder[a.derivedStatus] || 99;
+            const orderB = statusOrder[b.derivedStatus] || 99;
+            
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+            
+            if (!a.due_date && !b.due_date) return 0;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date) - new Date(b.due_date);
+        });
         return t;
     });
 
@@ -103,7 +116,7 @@
 
 <div class="module-container">
     <div class="header-actions">
-        <h2 class="module-title">Tasks</h2>
+        <h2 class="module-title">Tasks/event</h2>
         <button class="btn btn-primary" onclick={() => showAddForm = !showAddForm}>
             {showAddForm ? 'Cancel' : 'New Task'}
         </button>
@@ -164,13 +177,22 @@
                     <div class="task-item" transition:slide>
                         <div class="task-content">
                             <h4 class="task-title" class:completed={task.derivedStatus === 'Completed' || task.derivedStatus === 'Canceled'}>{task.title}</h4>
-                            {#if task.achieved_date}
-                                <div class="task-meta">
+                            <div class="task-meta">
+                                {#if task.created_at}
+                                    <span class="meta-item">
+                                        Created: {new Date(task.created_at).toLocaleDateString()}
+                                    </span>
+                                {/if}
+                                {#if task.derivedStatus === 'Completed' && task.achieved_date}
                                     <span class="meta-item">
                                         Completed: {new Date(task.achieved_date).toLocaleDateString()}
                                     </span>
-                                </div>
-                            {/if}
+                                {:else if task.derivedStatus === 'Canceled' && task.updated_at}
+                                    <span class="meta-item">
+                                        Canceled: {new Date(task.updated_at).toLocaleDateString()}
+                                    </span>
+                                {/if}
+                            </div>
                         </div>
 
                         {#if task.due_date && task.derivedStatus !== 'Completed' && task.derivedStatus !== 'Canceled'}

@@ -185,13 +185,22 @@
                                 <li class="simple-item" transition:slide>
                                     <div class="item-main">
                                         <h5 class="item-name" class:bought={item.derivedStatus === 'Bought' || item.derivedStatus === 'Canceled'}>{item.item_name}</h5>
-                                        {#if item.achieved_date}
-                                            <div class="task-meta">
+                                        <div class="task-meta">
+                                            {#if item.created_at}
+                                                <span class="meta-item">
+                                                    Created: {new Date(item.created_at).toLocaleDateString()}
+                                                </span>
+                                            {/if}
+                                            {#if item.derivedStatus === 'Bought' && item.achieved_date}
                                                 <span class="meta-item">
                                                     Bought: {new Date(item.achieved_date).toLocaleDateString()}
                                                 </span>
-                                            </div>
-                                        {/if}
+                                            {:else if item.derivedStatus === 'Canceled' && item.updated_at}
+                                                <span class="meta-item">
+                                                    Canceled: {new Date(item.updated_at).toLocaleDateString()}
+                                                </span>
+                                            {/if}
+                                        </div>
                                     </div>
 
                                     {#if item.due_date && item.derivedStatus !== 'Bought' && item.derivedStatus !== 'Canceled'}
@@ -412,7 +421,12 @@
         margin: 0;
         transition: color 0.15s;
     }
-
+.task-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
     .item-name.bought {
         text-decoration: line-through;
         color: #64748b;
