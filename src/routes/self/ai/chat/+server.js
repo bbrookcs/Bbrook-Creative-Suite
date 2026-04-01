@@ -18,11 +18,21 @@ export async function POST({ request }) {
         const [shopping] = await db.query(`SELECT id, item_name, category, status FROM self_shopping`);
         const [timeline] = await db.query(`SELECT action, module, created_at FROM self_timeline ORDER BY created_at DESC LIMIT 20`);
         
+        // Full finance transaction list
+        const [finances] = await db.query(`SELECT id, type, category, amount, date FROM self_finances ORDER BY date DESC`);
+
+        // Precomputed summaries for quick context
         const [[{ monthlyIncome }]] = await db.query(`
             SELECT COALESCE(SUM(amount), 0) as monthlyIncome 
             FROM self_finances 
             WHERE type = 'income' AND MONTH(date) = MONTH(CURRENT_DATE()) AND YEAR(date) = YEAR(CURRENT_DATE())
         `);
+        const [[{ monthlyExpenses }]] = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) as monthlyExpenses 
+            FROM self_finances 
+            WHERE type = 'expense' AND MONTH(date) = MONTH(CURRENT_DATE()) AND YEAR(date) = YEAR(CURRENT_DATE())
+        `);
+        const [[{ totalIncome }]] = await db.query(`SELECT COALESCE(SUM(amount), 0) as totalIncome FROM self_finances WHERE type = 'income'`);
         const [[{ totalExpenses }]] = await db.query(`SELECT COALESCE(SUM(amount), 0) as totalExpenses FROM self_finances WHERE type = 'expense'`);
 
         // 2. Data Framing: System Instruction
@@ -59,9 +69,18 @@ ${timeline.length ? timeline.map(l => `- ${l.action} in ${l.module} on ${new Dat
 PERMANENT GLOBAL MEMORY (use [ID:X] to delete a specific memory with delete_memory tool):
 ${memory.length ? memory.map(m => `- [ID:${m.id}] ${m.fact_text}`).join('\n') : 'No facts saved yet.'}
 
-FINANCIALS:
+FINANCIALS SUMMARY:
 - Income This Month: ${monthlyIncome}
-- Lifetime Recorded Expenses: ${totalExpenses}
+- Expenses This Month: ${monthlyExpenses}
+- Net This Month: ${(Number(monthlyIncome) - Number(monthlyExpenses)).toFixed(2)}
+- Lifetime Total Income: ${totalIncome}
+- Lifetime Total Expenses: ${totalExpenses}
+- Lifetime Net: ${(Number(totalIncome) - Number(totalExpenses)).toFixed(2)}
+
+ALL FINANCE TRANSACTIONS (most recent first):
+${finances.length ? finances.map(f => `- [ID:${f.id}] [${f.type.toUpperCase()}] [${f.category}] ${f.amount} on ${new Date(f.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`).join('\n') : 'No finance records yet.'}
+
+NOTE: You can answer questions like "how much did I earn from X in March", "total expenses in Q1", "what category do I spend most on", etc. by analyzing the transaction list above. For complex filtered queries Brook asks about, use your query_finances tool.
         `;
 
         // 3. Model Configuration with Tools
@@ -124,6 +143,19 @@ FINANCIALS:
                         name: "add_finance",
                         description: "Add an income or expense record.",
                         parameters: { type: "OBJECT", properties: { type: { type: "STRING", description: "'income' or 'expense'" }, category: { type: "STRING" }, amount: { type: "NUMBER" }, date: { type: "STRING", description: "YYYY-MM-DD" } }, required: ["type", "category", "amount", "date"] }
+                    },
+                    {
+                        name: "query_finances",
+                        description: "Query finance transactions with optional filters. Use this when Brook asks detailed financial questions like monthly breakdown, by category, by source, comparisons, etc.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                type: { type: "STRING", description: "Filter by 'income' or 'expense'. Omit for both." },
+                                category: { type: "STRING", description: "Filter by category/source name (partial match)." },
+                                month: { type: "INTEGER", description: "Filter by month number (1-12)." },
+                                year: { type: "INTEGER", description: "Filter by year (e.g. 2025)." }
+                            }
+                        }
                     },
                     {
                         name: "delete_record",
@@ -260,6 +292,24 @@ FINANCIALS:
                             await db.query(`INSERT INTO self_finances (type, category, amount, date) VALUES (?, ?, ?, ?)`, [args.type, args.category, args.amount, args.date ? new Date(args.date) : new Date()]);
                             await db.query(`INSERT INTO self_timeline (action, module, details) VALUES (?, ?, ?)`, ['Added Finance via AI', 'Finances', JSON.stringify({ type: args.type, amount: args.amount })]);
                             break;
+
+                        case "query_finances": {
+                            let sql = `SELECT id, type, category, amount, date FROM self_finances WHERE 1=1`;
+                            const qParams = [];
+                            if (args.type) { sql += ` AND type = ?`; qParams.push(args.type); }
+                            if (args.category) { sql += ` AND category LIKE ?`; qParams.push(`%${args.category}%`); }
+                            if (args.month) { sql += ` AND MONTH(date) = ?`; qParams.push(args.month); }
+                            if (args.year) { sql += ` AND YEAR(date) = ?`; qParams.push(args.year); }
+                            sql += ` ORDER BY date DESC`;
+                            const [qRows] = await db.query(sql, qParams);
+                            const qList = /** @type {any[]} */ (qRows);
+                            const qTotal = qList.reduce((sum, r) => sum + Number(r.amount), 0);
+                            statusMsg = qList.length > 0
+                                ? `Found ${qList.length} records. Total: ${qTotal.toFixed(2)}. Records:\n` +
+                                  qList.map(r => `[ID:${r.id}] [${r.type.toUpperCase()}] [${r.category}] ${r.amount} on ${new Date(r.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`).join('\n')
+                                : 'No records found for the given filters.';
+                            break;
+                        }
                             
                         case "delete_record": {
                             const allowed = ['tasks', 'shopping', 'plans', 'notes', 'finances'];
