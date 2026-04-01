@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { login } from '$lib/server/auth.js';
 
 export const load = ({ locals }) => {
-    if (locals.user && locals.user.role === 'admin') {
+    if (locals.user && locals.user.role === 'self') {
         throw redirect(302, '/self');
     }
 };
@@ -22,7 +22,7 @@ export const actions = {
             return fail(401, { invalid: true });
         }
 
-        if (result.user.role !== 'admin') {
+        if (result.user.role !== 'self') {
             return fail(403, { notAdmin: true });
         }
 

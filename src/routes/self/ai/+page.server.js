@@ -17,7 +17,7 @@ export const load = async ({ url }) => {
     let messages = [];
     
     if (sessionId) {
-        const [rows] = await db.query(`SELECT role, content as text FROM self_chat_messages WHERE session_id = ? ORDER BY created_at ASC`, [sessionId]);
+        const [rows] = await db.query(`SELECT id, role, content as text, created_at FROM self_chat_messages WHERE session_id = ? ORDER BY created_at ASC`, [sessionId]);
         messages = rows;
     }
     

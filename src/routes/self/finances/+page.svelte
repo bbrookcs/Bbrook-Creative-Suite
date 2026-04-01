@@ -1,6 +1,8 @@
 <script>
     import { enhance } from '$app/forms';
     import { slide, fade } from 'svelte/transition';
+    import { onMount } from 'svelte';
+    import Chart from 'chart.js/auto';
 
     let { data, form } = $props();
 
@@ -8,7 +10,219 @@
 
     let filteredFinances = $derived.by(() => {
         if (filterType === 'All') return data.finances;
-        return data.finances.filter(f => f.type === filterType);
+        return data.finances.filter(/** @param {any} f */ f => f.type === filterType);
+    });
+
+    // Chart Time Filtering options
+    let timeFilter = $state('7d');
+    let customStartDate = $state('');
+    let customEndDate = $state('');
+    /** @type {HTMLCanvasElement} */ let chartCanvas;
+    /** @type {any} */ let chartInstance = null;
+
+    let filteredGraphData = $derived.by(() => {
+        const now = new Date();
+        let startDate = new Date(0); // far past
+        let endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+        if (timeFilter === '7d') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+        } else if (timeFilter === '1m') {
+            startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
+        } else if (timeFilter === '1y') {
+            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        } else if (timeFilter === 'custom') {
+            if (customStartDate) {
+                const s = new Date(customStartDate);
+                startDate = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0);
+            }
+            if (customEndDate) {
+                const e = new Date(customEndDate);
+                endDate = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
+            }
+        }
+
+        return data.finances.filter(/** @param {any} f */ f => {
+            const txDate = new Date(f.date);
+            return txDate >= startDate && txDate <= endDate;
+        });
+    });
+
+    let summaryIncome = $derived.by(() => {
+        return filteredGraphData.reduce((sum, tx) => sum + (tx.type === 'income' ? Number(tx.amount) : 0), 0);
+    });
+
+    let summaryExpense = $derived.by(() => {
+        return filteredGraphData.reduce((sum, tx) => sum + (tx.type === 'expense' ? Number(tx.amount) : 0), 0);
+    });
+
+    let allTimeNetBalance = $derived.by(() => {
+        return data.finances.reduce((sum, tx) => sum + (tx.type === 'income' ? Number(tx.amount) : -Number(tx.amount)), 0);
+    });
+
+    $effect(() => {
+        // Trigger chart update when filteredGraphData or timeFilter changes explicitly
+        const currentData = filteredGraphData;
+        const currentFilter = timeFilter;
+        if (chartInstance && currentData.length >= 0) {
+            updateChart(currentData, currentFilter);
+        }
+    });
+
+    /** 
+     * @param {any[]} transactions 
+     * @param {string} filterMode
+     */
+    function groupDataByDate(transactions, filterMode) {
+        /** @type {Record<string, {label: string, income: number, expense: number, net: number}>} */
+        const grouped = {};
+        transactions.forEach(/** @param {any} tx */ tx => {
+            const dateObj = new Date(tx.date);
+            // Format date for chart labels
+            const dateStr = dateObj.toLocaleDateString(undefined, { 
+                month: 'short', 
+                day: 'numeric', 
+                year: (filterMode === 'all' || filterMode === '1y' || filterMode === 'custom') ? 'numeric' : undefined 
+            });
+            // Use ISO stamp as key to sort accurately later, or just a zero-hour date
+            const sortingKey = String(new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime());
+            
+            if (!grouped[sortingKey]) grouped[sortingKey] = { label: dateStr, income: 0, expense: 0, net: 0 };
+            if (tx.type === 'income') {
+                grouped[sortingKey].income += Number(tx.amount);
+                grouped[sortingKey].net += Number(tx.amount);
+            } else {
+                grouped[sortingKey].expense += Number(tx.amount);
+                grouped[sortingKey].net -= Number(tx.amount);
+            }
+        });
+        return grouped;
+    }
+
+    /** 
+     * @param {any[]} dataArr
+     * @param {string} filterMode
+     */
+    function updateChart(dataArr, filterMode) {
+        const grouped = groupDataByDate(dataArr.slice(), filterMode);
+        
+        // Sort grouped keys chronologically
+        const sortedKeys = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
+
+        const labels = sortedKeys.map(k => grouped[k].label);
+        const incomeData = sortedKeys.map(k => grouped[k].income);
+        const expenseData = sortedKeys.map(k => grouped[k].expense);
+        
+        // calculate cumulative net for chart
+        let cumulativeNet = 0;
+        const netData = sortedKeys.map(k => {
+            cumulativeNet += grouped[k].net;
+            return cumulativeNet;
+        });
+
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = incomeData;
+        chartInstance.data.datasets[1].data = expenseData;
+        chartInstance.data.datasets[2].data = netData;
+        chartInstance.update();
+    }
+
+    onMount(() => {
+        if (chartCanvas) {
+            const ctx = chartCanvas.getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Income',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3
+                        },
+                        {
+                            label: 'Expenses',
+                            data: [],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3
+                        },
+                        {
+                            label: 'Cumulative Net',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            pointRadius: 0,
+                            hidden: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ETB' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: '#94a3b8',
+                                usePointStyle: true,
+                                boxWidth: 8
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#262b36', display: false },
+                            ticks: { color: '#94a3b8', maxTicksLimit: 10 }
+                        },
+                        y: {
+                            grid: { color: '#262b36', display: false },
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: function(/** @type {string | number} */ value) {
+                                    const numVal = Number(value);
+                                    if (numVal >= 1000) return (numVal / 1000) + 'k';
+                                    return value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            updateChart(filteredGraphData, timeFilter);
+        }
+
+        return () => {
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+        };
     });
 </script>
 
@@ -26,8 +240,7 @@
                 </svg>
             </div>
             <div class="summary-details">
-                <span class="summary-label">Monthly Income</span>
-                <span class="summary-value income">{Number(data.monthlyIncome).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value income">{summaryIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         </div>
 
@@ -38,21 +251,55 @@
                 </svg>
             </div>
             <div class="summary-details">
-                <span class="summary-label">Monthly Expenses</span>
-                <span class="summary-value expense">{Number(data.monthlyExpense).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value expense">{summaryExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         </div>
 
-        <div class="card summary-card net-wrap" class:positive={data.netBalance >= 0} class:negative={data.netBalance < 0}>
+        <div class="card summary-card net-wrap" class:positive={allTimeNetBalance >= 0} class:negative={allTimeNetBalance < 0}>
             <div class="summary-icon">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                 </svg>
             </div>
             <div class="summary-details">
-                <span class="summary-label">Net Balance</span>
-                <span class="summary-value balance">{Math.abs(data.netBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span class="summary-value balance">{Math.abs(allTimeNetBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
+        </div>
+    </div>
+
+    <!-- TREND GRAPH -->
+    <div class="card graph-card">
+        <div class="graph-header">
+            <h3 class="card-title" style="margin: 0;">Financial Trend</h3>
+            <div class="time-filters">
+                <button class="time-btn" class:active={timeFilter === '7d'} onclick={() => timeFilter = '7d'}>7 Days</button>
+                <button class="time-btn" class:active={timeFilter === '1m'} onclick={() => timeFilter = '1m'}>1 Month</button>
+                <button class="time-btn" class:active={timeFilter === '1y'} onclick={() => timeFilter = '1y'}>1 Year</button>
+                <button class="time-btn" class:active={timeFilter === 'all'} onclick={() => timeFilter = 'all'}>All Time</button>
+                <button class="time-btn" class:active={timeFilter === 'custom'} onclick={() => timeFilter = 'custom'}>Custom</button>
+            </div>
+        </div>
+        
+        {#if timeFilter === 'custom'}
+            <div class="custom-date-range" transition:slide>
+                <div class="date-input-group">
+                    <label for="startDate">From:</label>
+                    <input type="date" id="startDate" class="form-input" bind:value={customStartDate} />
+                </div>
+                <div class="date-input-group">
+                    <label for="endDate">To:</label>
+                    <input type="date" id="endDate" class="form-input" bind:value={customEndDate} />
+                </div>
+            </div>
+        {/if}
+
+        <div class="chart-container">
+            {#if filteredGraphData.length === 0}
+                <div class="empty-chart">
+                    <p>No data available for this timeframe.</p>
+                </div>
+            {/if}
+            <canvas bind:this={chartCanvas}></canvas>
         </div>
     </div>
 
@@ -174,7 +421,7 @@
         display: flex;
         align-items: center;
         gap: 20px;
-        padding: 24px;
+        padding: 10px;
     }
 
     .summary-icon {
@@ -435,5 +682,114 @@
         .side-panel {
             width: 100%;
         }
+
+        .graph-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .time-filters {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .custom-date-range {
+            flex-direction: column;
+        }
+    }
+
+    .graph-card {
+        padding: 24px;
+        background: #15181e;
+        border: 1px solid #262b36;
+        border-radius: 12px;
+    }
+
+    .graph-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .time-filters {
+        display: flex;
+        gap: 8px;
+        background: #0f1115;
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid #262b36;
+    }
+
+    .time-btn {
+        background: transparent;
+        border: none;
+        color: #64748b;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .time-btn:hover {
+        color: #f1f5f9;
+        background: #1e222a;
+    }
+
+    .time-btn.active {
+        background: #2563eb;
+        color: #ffffff;
+    }
+
+    .custom-date-range {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: #0f1115;
+        border-radius: 8px;
+        border: 1px solid #262b36;
+    }
+
+    .date-input-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .date-input-group label {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .date-input-group input {
+        width: 150px;
+        padding: 6px 12px;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    .empty-chart {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 0.95rem;
+        background: rgba(21, 24, 30, 0.8);
+        z-index: 10;
     }
 </style>

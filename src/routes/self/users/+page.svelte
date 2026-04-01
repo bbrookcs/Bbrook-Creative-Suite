@@ -21,6 +21,7 @@
 
     function getRoleBadge(role) {
         if (role === 'admin') return 'role-admin';
+        if (role === 'self') return 'role-self';
         if (role === 'editor') return 'role-editor';
         return 'role-viewer';
     }
@@ -109,6 +110,7 @@
                         <label class="form-label" for="role">Role</label>
                         <select class="form-input" id="role" name="role">
                             <option value="admin">Admin</option>
+                            <option value="self">Owner</option> 
                             <option value="editor">Editor</option>
                             <option value="viewer" selected>Viewer</option>
                         </select>
@@ -131,6 +133,10 @@
         <div class="stat-card">
             <div class="stat-value">{data.users.filter(u => u.role === 'admin').length}</div>
             <div class="stat-label">Admins</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{data.users.filter(u => u.role === 'self').length}</div>
+            <div class="stat-label">Owner</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">{data.users.filter(u => u.role === 'editor').length}</div>
@@ -189,7 +195,7 @@
                                         </button>
                                         <div class="dropdown-divider"></div>
                                         <div class="dropdown-label">Change Role</div>
-                                        {#each ['admin', 'editor', 'viewer'] as role}
+                                        {#each ['admin', 'self', 'editor', 'viewer'] as role}
                                             {#if role !== user.role}
                                                 <form action="?/changeRole" method="POST" use:enhance>
                                                     <input type="hidden" name="id" value={user.id} />
@@ -488,6 +494,7 @@
     .role-admin { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
     .role-editor { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
     .role-viewer { background: rgba(100, 116, 139, 0.12); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.2); }
+    .role-self { background: rgba(100, 116, 139, 0.12); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.2); }
 
     /* Actions */
     .actions-cell {

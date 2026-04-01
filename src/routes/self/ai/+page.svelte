@@ -145,12 +145,69 @@
         actionModal = { type, id: session.id, title: session.title, newTitle: session.title };
     }
 
+    function formatChatDate(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const now = new Date();
+        const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const diffDays = Math.round((nowDay - dateDay) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+        return date.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+    }
+
+    function formatChatTime(isoString) {
+        if (!isoString) return '';
+        return new Date(isoString).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+
+    let contextMenu = $state(null);
+
+    function handleRightClick(e, index, msg) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!msg.id) return;
+
+        let x = e.clientX;
+        let y = e.clientY;
+        if (window.innerWidth - x < 150) x -= 150;
+        if (window.innerHeight - y < 100) y -= 100;
+
+        contextMenu = { x, y, index, msgId: msg.id };
+        activeDropdownId = null;
+    }
+
+    function closeContextMenu() {
+        contextMenu = null;
+    }
+
+    async function deleteMessage() {
+        if (!contextMenu) return;
+        const targetId = contextMenu.msgId;
+        const targetIndex = contextMenu.index;
+        contextMenu = null;
+
+        chatHistory = chatHistory.filter((_, i) => i !== targetIndex);
+
+        try {
+            await fetch('/self/ai/message', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: targetId })
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
     $effect(() => {
         currentSessionId = data.sessionId;
         sessions = data.sessions || [];
         chatHistory = data.initialMessages.length 
-            ? data.initialMessages.map(m => ({ role: m.role, text: m.text })) 
-            : [{ role: 'assistant', text: "Hello brook. How can I help you today?" }];
+            ? data.initialMessages.map(m => ({ id: m.id, role: m.role, text: m.text, created_at: m.created_at })) 
+            : [{ role: 'assistant', text: "Hello brook. How can I help you today?", created_at: new Date().toISOString() }];
             
         tick().then(() => scrollToBottom());
     });
@@ -167,8 +224,9 @@
     async function submitPrompt() {
         if (!prompt.trim()) return;
         
-        const currentMessages = [...chatHistory, { role: 'user', text: prompt }];
+        const currentMessages = [...chatHistory, { role: 'user', text: prompt, created_at: new Date().toISOString() }];
         chatHistory = currentMessages;
+        const pendingUserIndex = chatHistory.length - 1;
         prompt = '';
         
         await tick();
@@ -186,7 +244,8 @@
             const resData = await res.json();
             
             if (res.ok) {
-                chatHistory = [...chatHistory, { role: 'assistant', text: resData.reply }];
+                chatHistory[pendingUserIndex].id = resData.user_msg_id;
+                chatHistory = [...chatHistory, { id: resData.ai_msg_id, role: 'assistant', text: resData.reply, created_at: resData.created_at || new Date().toISOString() }];
                 
                 // If this was a new session, update GUI and URL safely
                 if (!currentSessionId && resData.session_id) {
@@ -234,7 +293,7 @@
     });
 </script>
 
-<svelte:window onclick={() => activeDropdownId = null} />
+<svelte:window onclick={() => { activeDropdownId = null; closeContextMenu(); }} onscroll={() => closeContextMenu()} />
 
 <svelte:head>
     <title>AI Assistant | /self OS</title>
@@ -309,7 +368,12 @@
 
         <div class="chat-history" bind:this={chatContainer}>
             {#each chatHistory as msg, i}
-                <div class="message-row {msg.role}" transition:slide>
+                {#if i === 0 || formatChatDate(chatHistory[i].created_at) !== formatChatDate(chatHistory[i-1].created_at)}
+                    <div class="chat-date-separator">
+                        <span>{formatChatDate(msg.created_at)}</span>
+                    </div>
+                {/if}
+                <div class="message-row {msg.role}" transition:slide oncontextmenu={(e) => handleRightClick(e, i, msg)}>
                     <div class="message-bubble {msg.role}">
                         <div class="bubble-content-wrapper">
                             <div class="bubble-text">
@@ -318,6 +382,9 @@
                                 {:else}
                                     {msg.text}
                                 {/if}
+                            </div>
+                            <div class="message-time-label" class:user={msg.role === 'user'}>
+                                {formatChatTime(msg.created_at)}
                             </div>
                             
                             {#if msg.role === 'assistant'}
@@ -800,6 +867,34 @@
         to { transform: rotate(360deg); }
     }
 
+    .chat-date-separator {
+        display: flex;
+        justify-content: center;
+        margin: 16px 0;
+    }
+
+    .chat-date-separator span {
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .message-time-label {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-align: right;
+        margin-top: -6px;
+        margin-bottom: 4px;
+    }
+
+    .message-time-label.user {
+        color: rgba(255,255,255,0.7);
+    }
+
     .thinking-bubble {
         align-items: center;
         padding: 12px 20px;
@@ -1069,4 +1164,48 @@
     .btn.danger:hover {
         background: #dc2626;
     }
+
+    .custom-context-menu {
+        position: fixed;
+        background: #1e222a;
+        border: 1px solid #262b36;
+        border-radius: 8px;
+        padding: 4px;
+        z-index: 9999;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .custom-context-menu button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        text-align: left;
+        padding: 8px 12px;
+        background: transparent;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.85rem;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    .custom-context-menu button:hover {
+        background: #2a2f3a;
+    }
+    .custom-context-menu button.danger {
+        color: #ef4444;
+    }
+    .custom-context-menu button.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+    }
 </style>
+
+{#if contextMenu}
+    <div class="custom-context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px;" onclick={(e) => e.stopPropagation()}>
+        <button class="danger" onclick={deleteMessage}>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete Message
+        </button>
+    </div>
+{/if}
