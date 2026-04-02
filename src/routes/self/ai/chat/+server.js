@@ -171,26 +171,30 @@ NOTE: You can answer questions like "how much did I earn from X in March", "tota
             }]
         });
 
-        // 4. Extract current prompt and strip fake UI mock messages
+        // 4. Extract current prompt from frontend (it's the last message sent)
         const currentMessageObj = messages.pop();
         const currentPrompt = currentMessageObj.text;
-        
-        while (messages.length > 0 && (messages[0].role === 'assistant' || messages[0].role === 'model')) {
-            if (messages[0].text.includes("How can I help you today?")) {
-                messages.shift();
-            } else {
-                break;
-            }
-        }
-        
-        while (messages.length > 0 && messages[0].role === 'assistant') {
-             messages.shift();
-        }
 
-        const formattedHistory = messages.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.text }]
-        }));
+        // Build timestamped history from DB so the AI perceives real time gaps.
+        // For existing sessions: load all prior messages with created_at.
+        // For new sessions: history is empty (nothing saved yet).
+        let formattedHistory = [];
+        if (session_id) {
+            const [dbMsgs] = await db.query(
+                `SELECT role, content, created_at FROM self_chat_messages
+                 WHERE session_id = ? ORDER BY created_at ASC`,
+                [session_id]
+            );
+            formattedHistory = /** @type {any[]} */ (dbMsgs).map(msg => ({
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{
+                    text: `[${new Date(msg.created_at).toLocaleString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    })}] ${msg.content}`
+                }]
+            }));
+        }
 
         // 5. Session DB Logic
         let currentSessionId = session_id;

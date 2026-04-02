@@ -1,7 +1,115 @@
 <script>
 	import { page, navigating } from '$app/stores';
+	import { PUBLIC_SELF_PIN } from '$env/static/public';
+	import { onMount } from 'svelte';
 	
 	let { data, children } = $props();
+
+	let isLocked = $state(true);
+	let pinInput = $state('');
+	let pinError = $state(false);
+	let lockoutMsg = $state('');
+
+	const LOCK_TIMEOUT = 10 * 60 * 1000;
+	const LOCK_LEVEL_1_MS = 30 * 60 * 1000;      // 30 mins
+	const LOCK_LEVEL_2_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+	function checkLockStatus() {
+		if (typeof localStorage === 'undefined') return;
+
+		// 1. Check if actively penalized (hard lockout)
+		const lockoutUntil = parseInt(localStorage.getItem('pin_lockout_until') || '0');
+		if (Date.now() < lockoutUntil) {
+			isLocked = true;
+			const remainingMins = Math.ceil((lockoutUntil - Date.now()) / 60000);
+			if (remainingMins > 60) {
+				lockoutMsg = `Too many attempts. Locked for ${Math.ceil(remainingMins/60)} hours.`;
+			} else {
+				lockoutMsg = `Too many attempts. Locked for ${remainingMins} mins.`;
+			}
+			return; // Skip normal session check
+		} else {
+			lockoutMsg = '';
+		}
+
+		// 2. Normal session check
+		const unlockedAt = localStorage.getItem('self_pin_unlocked');
+		if (unlockedAt && (Date.now() - parseInt(unlockedAt)) < LOCK_TIMEOUT) {
+			isLocked = false;
+		} else {
+			isLocked = true;
+		}
+	}
+
+	onMount(() => {
+		checkLockStatus();
+		const interval = setInterval(checkLockStatus, 15000); // Recheck every 15s
+		return () => clearInterval(interval);
+	});
+
+	// Trigger on dynamic navigation
+	$effect(() => {
+		$page.url.pathname;
+		checkLockStatus();
+	});
+
+	async function fireSecurityAlert(msg) {
+		try {
+			await fetch('/api/security-alert', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message: msg })
+			});
+		} catch (e) {
+			// Fail silently on frontend
+		}
+	}
+
+	function handlePinInput(e) {
+		if (lockoutMsg !== '') {
+			pinInput = '';
+			return; // hard locked
+		}
+
+		pinInput = e.target.value.replace(/[^0-9]/g, '');
+		if (pinInput.length === 4) {
+			if (pinInput === PUBLIC_SELF_PIN) {
+				localStorage.setItem('self_pin_unlocked', Date.now().toString());
+				localStorage.setItem('pin_failed_attempts', '0'); // Reset fails on success
+				isLocked = false;
+				pinError = false;
+				pinInput = '';
+			} else {
+				pinError = true;
+				
+				let attempts = parseInt(localStorage.getItem('pin_failed_attempts') || '0');
+				attempts++;
+				localStorage.setItem('pin_failed_attempts', attempts.toString());
+
+				if (attempts >= 5) {
+					// Level 2: 5 fails -> 24 hour lock
+					const until = Date.now() + LOCK_LEVEL_2_MS;
+					localStorage.setItem('pin_lockout_until', until.toString());
+					fireSecurityAlert("CRITICAL: 5 failed PIN attempts on OS dashboard! Device locked for 24 hours.");
+					checkLockStatus();
+				} 
+				else if (attempts === 3) {
+					// Level 1: 3 fails -> 30 min lock
+					const until = Date.now() + LOCK_LEVEL_1_MS;
+					localStorage.setItem('pin_lockout_until', until.toString());
+					fireSecurityAlert("WARNING: 3 failed PIN attempts on OS dashboard. Device locked for 30 minutes.");
+					checkLockStatus();
+				}
+
+				const inputField = e.target;
+				setTimeout(() => {
+					pinInput = '';
+					pinError = false;
+					if (inputField && !lockoutMsg) inputField.focus();
+				}, 600);
+			}
+		}
+	}
 	
 	const navItems = [
 		{ name: 'Dashboard', path: '/self', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -20,7 +128,38 @@
 	];
 </script>
 
-<div class="dashboard-shell">
+{#if isLocked}
+<div class="pin-overlay">
+	<div class="pin-card {pinError ? 'shake' : ''}">
+		<div class="shield-icon">
+			<svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+			</svg>
+		</div>
+		
+		{#if lockoutMsg}
+			<h2 style="color: #ef4444; margin: 0 0 8px 0;">Security Lockout</h2>
+			<p style="color: #fca5a5; font-size: 0.95rem; margin: 0 0 24px 0;">{lockoutMsg}</p>
+		{:else}
+			<div class="pin-input-container">
+				<input 
+					type="password" 
+					inputmode="numeric" 
+					pattern="[0-9]*"
+					maxlength="4"
+					bind:value={pinInput}
+					oninput={handlePinInput}
+					class="pin-input"
+					placeholder="••••"
+					autofocus
+				/>
+			</div>
+		{/if}
+	</div>
+</div>
+{/if}
+
+<div class="dashboard-shell" style={isLocked ? 'filter: blur(10px); pointer-events: none;' : ''}>
 	<nav class="sidebar">
 		<div class="brand">
 			<span class="brand-text">Personal</span>
@@ -111,6 +250,94 @@
 		height: 100vh;
 		overflow: hidden;
 		background: #0f1115;
+		transition: filter 0.3s ease;
+	}
+
+	/* PIN Overlay Styles */
+	.pin-overlay {
+		position: fixed;
+		top: 0; left: 0; right: 0; bottom: 0;
+		background: rgba(15, 17, 21, 0.85);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 9999;
+	}
+
+	.pin-card {
+		background: #15181e;
+		border: 1px solid #262b36;
+		padding: 40px;
+		border-radius: 16px;
+		text-align: center;
+		box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+		max-width: 320px;
+		width: 100%;
+	}
+
+	.shield-icon {
+		background: rgba(37, 99, 235, 0.1);
+		color: #3b82f6;
+		width: 64px;
+		height: 64px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin: 0 auto 20px;
+	}
+
+	.shield-icon svg {
+		width: 32px;
+		height: 32px;
+	}
+
+	.pin-card h2 {
+		margin: 0 0 8px 0;
+		color: #f1f5f9;
+		font-size: 1.5rem;
+	}
+
+	.pin-card p {
+		color: #94a3b8;
+		font-size: 0.9rem;
+		margin: 0 0 24px 0;
+	}
+
+	.pin-input {
+		background: #0f1115;
+		border: 2px solid #262b36;
+		border-radius: 12px;
+		color: #fff;
+		font-size: 2rem;
+		text-align: center;
+		letter-spacing: 12px;
+		padding: 16px 8px;
+		width: 100%;
+		box-sizing: border-box;
+		outline: none;
+		transition: border-color 0.2s;
+	}
+
+	.pin-input:focus {
+		border-color: #3b82f6;
+	}
+
+	.pin-card.shake {
+		animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+	}
+	.pin-card.shake .pin-input {
+		border-color: #ef4444;
+		color: #ef4444;
+	}
+
+	@keyframes shake {
+		10%, 90% { transform: translate3d(-1px, 0, 0); }
+		20%, 80% { transform: translate3d(2px, 0, 0); }
+		30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+		40%, 60% { transform: translate3d(4px, 0, 0); }
 	}
 
 	.sidebar {
